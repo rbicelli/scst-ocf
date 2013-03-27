@@ -39,6 +39,11 @@ OCF_RESKEY_portals_default="none"
 OCF_RESKEY_target_id_default="0"
 : ${OCF_RESKEY_target_id=${OCF_RESKEY_target_id_default}}
 
+# SRPT: Disable per_port
+OCF_RESKEY_srpt_disable_per_port_default=0
+: $OCF_RESKEY_srpt_disable_per_port=${OCF_RESKEY_srpt_disable_per_port_default}}
+
+
 # Lockfile, used for selecting a target ID
 LOCKFILE=${HA_RSCTMP}/SCSTTarget-${OCF_RESKEY_implementation}.lock
 ISCSI_DAEMON="/usr/local/sbin/iscsi-scstd"
@@ -46,7 +51,7 @@ ISCSI_DAEMON="/usr/local/sbin/iscsi-scstd"
 SCST_BASE="/sys/kernel/scst_tgt"
 ISCSI_BASE="${SCST_BASE}/targets/iscsi"
 TARGET_BASE="${SCST_BASE}/targets"
-SRPT_TARGET=""
+SRPT_TARGET="${TARGET_BASE}/ib_srpt/"
 #######################################################################
 
 meta_data() {
@@ -153,6 +158,23 @@ Default is disabled.
 <content type="string" />
 </parameter>
 
+<parameter name="srpt_target_ports" required="0" unique="0">
+<longdesc lang="en">
+Space-separated list of SRPT HCA ports allowed to have the target
+enabled on.
+Default is enabled.</longdesc>
+<shortdesc lang="en">SRPT HCA ports allowed/shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="srpt_disable_per_port" required="0" unique="0">
+<longdesc lang="en">
+Disables SRPT per-port mode.
+Default is enabled.</longdesc>
+<shortdesc lang="en">Disables SRPT per-port mode</shortdesc>
+<content type="string" />
+</parameter>
+
 <parameter name="debug_enable" required="0" unique="0">
 <longdesc lang="en">
 Enables Debug. 0 for disabled, 1 for enabled.
@@ -188,31 +210,47 @@ l_debug () {
 	if [ "${OCF_RESKEY_debug_enable}" == "1" ]; then	
 		echo $1 >> /tmp/scsttarget.log
 	fi
+	ocf_log debug $1
 }
 
 l_find_srpt_target_name () {
 	l_debug "Scanning ${TARGET_BASE}/ib_srpt"
- 	
+	local RET=1 	
+	SRPT_TARGET_NAME=""	
 	for i in $( ls "${TARGET_BASE}/ib_srpt" ) ; do
 		l_debug "Entering ${TARGET_BASE}/ib_srpt/${i}"
 		if [ -e "${TARGET_BASE}/ib_srpt/${i}/enabled" ]; then
 			l_debug "Found SRPT Target Name: ${i}"
-	                SRPT_TARGET="${TARGET_BASE}/ib_srpt/${i}"
-			SRPT_TARGET_NAME="${i}"
-			return 0
+			if [ "${OCF_RESKEY_srpt_disable_per_port}" = "0" ]; then
+	                	# Cycle Through allowed targets
+				for l in ${OCF_RESKEY_srpt_target_ports} ; do
+					if [ "${l}" = "${i}" ]; then
+						SRPT_TARGET_NAME="${SRPT_TARGET_NAME} ${i}"
+						RET=0
+					fi
+				done
+			else
+				#Single target				
+				#SRPT_TARGET="${TARGET_BASE}/ib_srpt/${i}"
+				SRPT_TARGET_NAME="${i}"
+				return 0;
+			fi
 		fi
         done
 	
-	return 1
+	return $RET
 }
 
 l_load_module () {
+	# $1: module name
+	# $2: module parameter 1
+	# $3: module parameter 2
 	n=`lsmod | grep -c "^$1 "`
 	if [ $n -gt 0 ];
 	then
 		return 0
 	else
-		modprobe $1> /dev/null 2>&1 || return 1
+		modprobe $1 > /dev/null 2>&1 || return 1
 		return 0
 	fi
 }
@@ -238,7 +276,11 @@ l_start_service () {
 			#Load Infiniband
 			if [ "${OCF_RESKEY_srpt_enable}" == "1" ]; then
 				l_debug "Loading Infiniband Module"				
-				l_load_module ib_srpt
+				if [ "${OCF_RESKEY_srpt_disable_per_port}" = "0" ]; then
+					l_load_module ib_srpt use_port_guid_in_session_name=1 one_target_per_port=1
+				else
+					l_load_module ib_srpt
+				fi
 				l_find_srpt_target_name				
 			fi
 		;;
@@ -367,11 +409,15 @@ SCSTTarget_start() {
 		
 		fi
 
-		# Infiniband - TODO: Enable target according to parameters
+		# Infiniband
 		if [ "${OCF_RESKEY_srpt_enable}" == "1" ]; then
 			l_start_service srpt			
-			l_debug "Enable Target ${SRPT_TARGET}"
-			echo 1 > "${SRPT_TARGET}/enabled" || exit $OCF_ERR_GENERIC
+			
+			for i in ${SRPT_TARGET_NAME}; do
+				l_debug "Enable Target ${i}"			
+				echo 1 > "${SRPT_TARGET}/${i}/enabled" || exit $OCF_ERR_GENERIC			
+			done
+			
 			l_debug "Infiniband: Started."
 		fi
 
@@ -428,18 +474,22 @@ SCSTTarget_stop() {
 		
 		# Check if there are connected luns
 		ib_stop=true
-    		for i in $( ls "${SRPT_TARGET}/luns" ) ; do
-    			if [ -d "${SRPT_TARGET}/luns/${i}" ]; then
-				ocf_log warn "Unable to stop Infiniband target ${SRPT_TARGET_NAME}: lun ${i} connected!"
-				ib_stop=false
-				scst_stop=false   			
-			fi	
+    		for i in $( ls "${SRPT_TARGET}/${i}/luns" ) ; do    			
+			for l in ${SRPT_TARGET_NAME}; do
+				if [ -d "${SRPT_TARGET}/${i}/luns/${l}" ]; then
+					ocf_log warn "Unable to stop Infiniband target ${i}: lun ${l} connected!"
+					ib_stop=false
+					scst_stop=false   			
+				fi
+			done			
+				
     		done		
 		
 		if ${ib_stop} ; then
-			ocf_log info "disabling SRPT Target ${SRPT_TARGET_NAME}"						
-			l_debug "Disable Target ${SRPT_TARGET_NAME}"
-			echo 0 > "${SRPT_TARGET}/enabled" || exit $OCF_ERR_GENERIC			
+			for i in ${SRPT_TARGET_NAME}; do
+				l_debug "Disable Target ${i}"
+				echo 0 > "${SRPT_TARGET}/${i}/enabled" || exit $OCF_ERR_GENERIC			
+			done						
 			
 			l_debug "Unload ib_srpt"			
 			rmmod ib_srpt
