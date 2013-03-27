@@ -43,6 +43,10 @@ OCF_RESKEY_target_id_default="0"
 OCF_RESKEY_srpt_disable_per_port_default=0
 : $OCF_RESKEY_srpt_disable_per_port=${OCF_RESKEY_srpt_disable_per_port_default}}
 
+# SRPT: Port List
+OCF_RESKEY_srpt_target_ports_default="all"
+: $OCF_RESKEY_srpt_target_ports=${OCF_RESKEY_srpt_target_ports_default}}
+
 
 # Lockfile, used for selecting a target ID
 LOCKFILE=${HA_RSCTMP}/SCSTTarget-${OCF_RESKEY_implementation}.lock
@@ -162,8 +166,8 @@ Default is disabled.
 <longdesc lang="en">
 Space-separated list of SRPT HCA ports allowed to have the target
 enabled on.
-Default is enabled.</longdesc>
-<shortdesc lang="en">SRPT HCA ports allowed/shortdesc>
+Default is enabled to all ports.</longdesc>
+<shortdesc lang="en">SRPT HCA ports allowed</shortdesc>
 <content type="string" />
 </parameter>
 
@@ -227,6 +231,11 @@ l_find_srpt_target_name () {
 					if [ "${l}" = "${i}" ]; then
 						SRPT_TARGET_NAME="${SRPT_TARGET_NAME} ${i}"
 						RET=0
+					else
+						if [ "${OCF_RESKEY_target_ports}" = "all" ]; then
+							SRPT_TARGET_NAME="${SRPT_TARGET_NAME} ${i}"
+							RET=0
+						fi					
 					fi
 				done
 			else
