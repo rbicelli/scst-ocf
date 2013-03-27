@@ -228,14 +228,14 @@ l_find_srpt_target_name () {
 			if [ "${OCF_RESKEY_srpt_disable_per_port}" = "0" ]; then
 	                	# Cycle Through allowed targets
 				for l in ${OCF_RESKEY_srpt_target_ports} ; do
-					if [ "${l}" = "${i}" ]; then
-						SRPT_TARGET_NAME="${SRPT_TARGET_NAME} ${i}"
-						RET=0
-					else
-						if [ "${OCF_RESKEY_target_ports}" = "all" ]; then
+					if [ "${OCF_RESKEY_srpt_target_ports}" = "all" ]; then
 							SRPT_TARGET_NAME="${SRPT_TARGET_NAME} ${i}"
 							RET=0
-						fi					
+					else	
+						if [ "${l}" = "${i}" ]; then
+							SRPT_TARGET_NAME="${SRPT_TARGET_NAME} ${i}"
+							RET=0											
+						fi
 					fi
 				done
 			else
