@@ -1,0 +1,122 @@
+SCST ISCSI Resource Agents
+Version 1.2
+
+(c) 2012 Riccardo Bicelli (r.bicelli@gmail.com)
+	and Linux HA Contributors
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of version 2 of the GNU General Public License as
+published by the Free Software Foundation.
+
+If you find this program useful or if you modify it, please write me a
+mail.
+
+CHANGELOG:
+03-14-2013: Added Support of LUN in Master/Slave
+	    Added possibity to run in infiniband mode only, iscsi only, or both ib and iscsi.
+            Various bug corrections.
+	    Changed parameter lun to iscsi_lun, for different lun handling by different drivers (for example ib).
+03-06-2013: Added Infiniband (SRP) support.
+04-31-2012: Modified LUN stop behavior, the session with initiator is 
+            closed only if initiator is connected to LUN the script is
+            stopping.
+
+INSTALLATION
+
+Place files SCSTTarget and SCSTLun into pacemaker ocf directory (usually 
+/usr/lib/ocf/resource.d or /usr/lib64/ocf/resource.d)
+
+EXAMPLE OF USAGE
+
+Assumptions: 
+- you are using DRBD as backing device (/dev/drbd1)
+- your target iqn is iqn.2012-02.com.mysuperhasan:vdisk.lun
+- your nic reserved for iscsi is eth2 and your iscsi subnet is 192.168.103.x
+
+This is what your resource configuration in cib notation will look like:
+
+
+primitive DRBD_VOLUME ocf:linbit:drbd \
+	params drbd_resource="DRBDRESOURCE" \
+	op monitor interval="29" role="Master" \
+	op monitor interval="31" role="Slave"
+primitive ISCSI_IP ocf:heartbeat:IPaddr2 \
+	params ip="192.168.103.20" cidr_netmask="24" nic="eth2" \
+	op monitor interval="10s"
+primitive ISCSI_LUN ocf:scst:SCSTLun \
+	params iscsi_enable="1" target_iqn="iqn.2012-02.com.mysuperhasan:vdisk.lun" iscsi_lun="0" \
+	path="/dev/drbd1" handler="vdisk_fileio" device_name="VDISK-LUN10" \ 		
+	additional_parameters="nv_cache=1" \
+	op monitor interval="10s" timeout="120s"
+primitive ISCSI_TGT ocf:scst:SCSTTarget \
+	params iscsi_enable="1" iqn="iqn.2012-02.com.mysuperhasan:vdisk.lun" \
+	portals="192.168.103.20" \
+	op monitor interval="10s" timeout="120s"
+group GR_ISCSI ISCSI_TGT ISCSI_LUN ISCSI_IP
+ms MS_DRBD_VOLUME DRBD_VOLUME \
+	meta master-max="1" master-node-max="1" clone-max="2" \
+	clone-node-max="1" notify="true"
+colocation CO_ISCSI_ON_DRBD_VOLUME inf: GR_ISCSI MS_DRBD_VOLUME:Master
+order OR_DRBD_BEFORE_ISCSI inf: MS_DRBD_VOLUME:promote GR_ISCSI:start
+
+
+INFINIBAND:
+For now infiniband support is using one target per HCA model, with SCST auto-created target names.
+Soon it will be ported in one target per per mode, with target names represented by HCA port GUID 
+
+The CIB for infiniband looks like this:
+
+primitive ISCSI_LUN ocf:scst:SCSTLun \
+	params target_iqn="iqn.2012-02.com.mysuperhasan:vdisk.lun" lun="0" \
+	path="/dev/drbd1" handler="vdisk_fileio" device_name="VDISK-LUN10" \ 		
+	srpt_enable=1 additional_parameters="nv_cache=1" \
+	op monitor interval="10s" timeout="120s"
+primitive ISCSI_TGT ocf:scst:SCSTTarget \
+	params iqn="iqn.2012-02.com.mysuperhasan:vdisk.lun" \
+	portals="192.168.103.20" \
+	srpt_enable=1 \
+	op monitor interval="10s" timeout="120s"
+
+MASTER/SLAVE LUN:
+I added preliminary support for Master/Slave LUN. For now it only works with iSCSI.
+After testing it will be released a version with infiniband support.
+
+The SCSTLunMS Resource Agent is intended to be used on a resource stack like this:
+
++ SCST ISCSI TARGET (Cloned Resource)
+  + SCST LUN Master
+  + DRBD Resource Master
+
+When LUN is running as Master,  is pointing to a "real device", when running slave is pointing to a NULLIO
+device.
+
+
+A testing CIB will look like:
+
+primitive ISCSI_TGT ocf:scst:SCSTTarget \
+	params iqn="iqn.2012-02.com.mysuperhasan:vdisk.lun" \
+	portals="192.168.103.20 192.168.104.20" \
+	op monitor interval="10s" timeout="120s" 
+clone CL_ISCSI_TGT ISCSI_TGT \
+        clone-max="2" clone-node-max="1"
+primitive DUMMY_LUN0 ocf:heartbeat:Dummy \
+        op monitor interval="10s"
+primitive ISCSI_LUN0 ocf:scst:SCSTLunMS \
+        params target_iqn="iqn.2012-02.com.mysuperhasan:vdisk.lun" lun="0" path="/dev/drbd1" handler="vdisk_fileio" device_name="VDISK-LUN0" scsi_id="LUN00" scsi_sn="000010" additional_parameters="nv_cache=1" \
+        op monitor interval="10s" timeout="120s"
+ms MS_ISCSI_LUN0 ISCSI_LUN0 \
+        meta master-max="1" master-node-max="1" clone-max="2" clone-node-max="1" notify="true"
+colocation CO_LUN0 inf: DUMMY_LUN0 MS_ISCSI_LUN0:Master
+colocation CO_LUN0_ON_DRBD inf: MS_ISCSI_LUN0:Master MS_DRBD_VOLUME:Master
+order OR_LUN0 inf: MS_DRBD_VOLUME:promote MS_ISCSI_LUN0:promote
+
+Please note that parameter names are in "old style" (no iscsi_enable, no srpt_enable, no iscsi_lun)
+
+CURRENT LIMITATIONS
+
+Scripts are tested only with straight drbd or lvm over drbd as backing device, 
+using vdisk_fileio, with one lun per target.
+
+CHAP authentication is configurable, but not yet tested. My current version of SCST
+throws an error while adding chap parameters.
+

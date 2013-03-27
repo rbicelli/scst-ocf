@@ -1,0 +1,33 @@
+primitive DUMMY_LUN1 ocf:heartbeat:Dummy \
+        op monitor interval="10s"
+primitive ISCSI_LUN1 ocf:onesan:SCSTLunMS \
+        params target_iqn="iqn.2012-02.com.onesan:iscsi.t00" lun="1" path="/dev/drbd/by-res/SDB2" handler="vdisk_fileio" device_name="SDB2" scsi_id="LUSDB2" scsi_sn="ESDB2" additional_parameters="nv_cache=1" \
+        op monitor interval="10s" timeout="120s"
+ms MS_ISCSI_LUN1 ISCSI_LUN1 \
+        meta master-max="1" master-node-max="1" clone-max="2" clone-node-max="1" notify="true" target-role="Started"
+colocation CO_LUN1 inf: DUMMY_LUN1 MS_ISCSI_LUN1:Master
+colocation CO_LUN1_ON_SDB2 inf: MS_ISCSI_LUN1:Master MS_DRBD_SDB2:Master
+order OR_LUN1 inf: MS_DRBD_SDB2:promote MS_ISCSI_LUN1:promote
+
+
+primitive DUMMY_LUN2 ocf:heartbeat:Dummy \
+        op monitor interval="10s"
+primitive ISCSI_LUN2 ocf:onesan:SCSTLunMS \
+        params target_iqn="iqn.2012-02.com.onesan:iscsi.t00" lun="1" path="/dev/drbd/by-res/SDB3" handler="vdisk_fileio" device_name="SDB3" scsi_id="LUSDB3" scsi_sn="ESDB3" additional_parameters="nv_cache=1" \
+        op monitor interval="10s" timeout="120s"
+ms MS_ISCSI_LUN2 ISCSI_LUN2 \
+        meta master-max="1" master-node-max="1" clone-max="2" clone-node-max="1" notify="true" target-role="Started"
+colocation CO_LUN2 inf: DUMMY_LUN2 MS_ISCSI_LUN2:Master
+colocation CO_LUN2_ON_SDB3 inf: MS_ISCSI_LUN2:Master MS_DRBD_SDB3:Master
+order OR_LUN2 inf: MS_DRBD_SDB3:promote MS_ISCSI_LUN2:promote
+
+primitive DUMMY_LUN3 ocf:heartbeat:Dummy \
+        op monitor interval="10s"
+primitive ISCSI_LUN3 ocf:onesan:SCSTLunMS \
+        params target_iqn="iqn.2012-02.com.onesan:iscsi.t00" lun="1" path="/dev/drbd/by-res/SDB4" handler="vdisk_fileio" device_name="SDB4" scsi_id="LUSDB4" scsi_sn="ESDB4" additional_parameters="nv_cache=1" \
+        op monitor interval="10s" timeout="120s"
+ms MS_ISCSI_LUN3 ISCSI_LUN3 \
+        meta master-max="1" master-node-max="1" clone-max="2" clone-node-max="1" notify="true" target-role="Started"
+colocation CO_LUN3 inf: DUMMY_LUN3 MS_ISCSI_LUN3:Master
+colocation CO_LUN3_ON_SDB4 inf: MS_ISCSI_LUN3:Master MS_DRBD_SDB4:Master
+order OR_LUN3 inf: MS_DRBD_SDB3:promote MS_ISCSI_LUN3:promote
