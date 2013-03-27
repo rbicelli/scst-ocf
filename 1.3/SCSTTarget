@@ -41,11 +41,11 @@ OCF_RESKEY_target_id_default="0"
 
 # SRPT: Disable per_port
 OCF_RESKEY_srpt_disable_per_port_default=0
-: $OCF_RESKEY_srpt_disable_per_port=${OCF_RESKEY_srpt_disable_per_port_default}}
+: ${OCF_RESKEY_srpt_disable_per_port=${OCF_RESKEY_srpt_disable_per_port_default}}
 
 # SRPT: Port List
 OCF_RESKEY_srpt_target_ports_default="all"
-: $OCF_RESKEY_srpt_target_ports=${OCF_RESKEY_srpt_target_ports_default}}
+: ${OCF_RESKEY_srpt_target_ports=${OCF_RESKEY_srpt_target_ports_default}}
 
 
 # Lockfile, used for selecting a target ID
