@@ -55,10 +55,11 @@ to provide Master/Slave capability for iSCSI scst.
 
 <parameter name="allowed_targets" required="1" unique="0">
 <longdesc lang="en">
-Comma separated list of target iqn lun can map to. Position in the list determines
+Space separated list of target iqn lun can map to. Position in the list determines
 the target id.
 Lun maps on all targets.
 Target id is used to create 1:1 matching between resource instances, for ALUA.
+For iSCSI Target ID is calculated in 1000 + the position in the list. 
 </longdesc>
 <shortdesc lang="en">Target IQNs Allowed</shortdesc>
 <content type="string" />
@@ -179,7 +180,7 @@ debug_conf() {
 }
 
 l_find_target_iqn () {
-	IFS=","	
+			
 	for TARGET_IQN in ${OCF_RESKEY_allowed_targets}; do
 		if [ -d "${ISCSI_BASE}/${TARGET_IQN}" ]; then
 			ISCSI_TARGET_IQN=${TARGET_IQN}
@@ -292,7 +293,6 @@ l_set_alua_config() {
 	echo "create TGT_GROUP_${OCF_RESKEY_device_name}_S" > "${SYSFS_ROOTPATH}/device_groups/${DEV_GROUP}/target_groups/mgmt" || return 1
 	echo "${GROUP_ID_S}"         > "${SYSFS_ROOTPATH}/device_groups/${DEV_GROUP}/target_groups/TGT_GROUP_${OCF_RESKEY_device_name}_S/group_id" || return 1
 	
-	IFS=","
 
 	
 	for TARGET_IQN in ${OCF_RESKEY_allowed_targets}; do

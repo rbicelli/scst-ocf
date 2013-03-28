@@ -36,11 +36,11 @@ OCF_RESKEY_portals_default="none"
 : ${OCF_RESKEY_portals=${OCF_RESKEY_portals_default}}
 
 # Target ID
-OCF_RESKEY_target_id_default="0"
+OCF_RESKEY_target_id_default=0
 : ${OCF_RESKEY_target_id=${OCF_RESKEY_target_id_default}}
 
 # SRPT: Disable per_port
-OCF_RESKEY_srpt_disable_per_port_default=0
+OCF_RESKEY_srpt_disable_per_port_default=false
 : ${OCF_RESKEY_srpt_disable_per_port=${OCF_RESKEY_srpt_disable_per_port_default}}
 
 # SRPT: Port List
@@ -62,14 +62,13 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="SCSTTarget" version="0.1">
-<version>1.1.9</version>
+<resource-agent name="SCSTTarget" version="1.3">
+<version>1.2.9</version>
 
 <longdesc lang="en">
-Manages SCST targets.
-For now it supports iSCSI and Infiniband.
-An iSCSI target is a collection of SCSI Logical
-Units (LUs) exported via a daemon that speaks the iSCSI protocol or
+Manages SCST SCSI targets.
+A SCSI target is a collection of SCSI Logical Units (LUs) 
+exported via a daemon that speaks the iSCSI protocol or
 directly on Infiniband HCA.
 </longdesc>
 <shortdesc lang="en">SCST target export agent</shortdesc>
@@ -78,11 +77,11 @@ directly on Infiniband HCA.
 
 <parameter name="iscsi_enable" required="0" unique="0">
 <longdesc lang="en">
-Enables iSCSI support. 0 for disabled, 1 for enabled.
+Enables iSCSI support.
 Default is disabled.
 </longdesc>
 <shortdesc lang="en">Enable iSCSI</shortdesc>
-<content type="string" />
+<content type="boolean" default="false"/>
 </parameter>
 
 <parameter name="iqn" required="1" unique="0">
@@ -98,9 +97,11 @@ The target iSCSI Qualified Name (IQN). Should follow the conventional
 <longdesc lang="en">
 The rel_target_id for Target. Default is set automatically.
 This is mandatory for ALUA  settings.
+For this implementation iSCSI Target IDs are calculated in
+1000+target_id.
 </longdesc>
-<shortdesc lang="en">iSCSI target ID</shortdesc>
-<content type="string" />
+<shortdesc lang="en">Target ID</shortdesc>
+<content type="integer" />
 </parameter>
 
 <parameter name="portals" required="0" unique="0">
@@ -155,11 +156,11 @@ dependent. Neither the name nor the value may contain whitespace.
 
 <parameter name="srpt_enable" required="0" unique="0">
 <longdesc lang="en">
-Enables Infiniband support. 0 for disabled, 1 for enabled.
+Enables Infiniband support.
 Default is disabled.
 </longdesc>
 <shortdesc lang="en">Enable Infiniband</shortdesc>
-<content type="string" />
+<content type="boolean" default="false"/>
 </parameter>
 
 <parameter name="srpt_target_ports" required="0" unique="0">
@@ -168,7 +169,7 @@ Space-separated list of SRPT HCA ports allowed to have the target
 enabled on.
 Default is enabled to all ports.</longdesc>
 <shortdesc lang="en">SRPT HCA ports allowed</shortdesc>
-<content type="string" />
+<content type="string" default="${OCF_RESKEY_srpt_target_ports_default}"/>
 </parameter>
 
 <parameter name="srpt_disable_per_port" required="0" unique="0">
@@ -176,18 +177,18 @@ Default is enabled to all ports.</longdesc>
 Disables SRPT per-port mode.
 Default is enabled.</longdesc>
 <shortdesc lang="en">Disables SRPT per-port mode</shortdesc>
-<content type="string" />
+<content type="boolean" default="false"/>
 </parameter>
 
 <parameter name="debug_enable" required="0" unique="0">
 <longdesc lang="en">
-Enables Debug. 0 for disabled, 1 for enabled.
+Enables Debug.
 Default is disabled.
 Writes debug Messages to /tmp/scsttarget.log, scst configuration
 in /tmp/scst/scst.conf.start and /tmp/scst.conf.stop
 </longdesc>
 <shortdesc lang="en">Enable Debug</shortdesc>
-<content type="string" />
+<content type="boolean" default="false"/>
 </parameter>
 
 </parameters>
@@ -211,7 +212,7 @@ l_exit () {
 
 l_debug () {
 	# Instead of using the ocf_log function, write to a file
-	if [ "${OCF_RESKEY_debug_enable}" == "1" ]; then	
+	if ${OCF_RESKEY_debug_enable} ; then	
 		echo $1 >> /tmp/scsttarget.log
 	fi
 	ocf_log debug $1
@@ -225,22 +226,16 @@ l_find_srpt_target_name () {
 		l_debug "Entering ${TARGET_BASE}/ib_srpt/${i}"
 		if [ -e "${TARGET_BASE}/ib_srpt/${i}/enabled" ]; then
 			l_debug "Found SRPT Target Name: ${i}"
-			if [ "${OCF_RESKEY_srpt_disable_per_port}" = "0" ]; then
+			if ! ${OCF_RESKEY_srpt_disable_per_port}; then
 	                	# Cycle Through allowed targets
 				for l in ${OCF_RESKEY_srpt_target_ports} ; do
-					if [ "${OCF_RESKEY_srpt_target_ports}" = "all" ]; then
+					if [ "${OCF_RESKEY_srpt_target_ports}" = "all" ] || [ "${l}" = "${i}" ]; then
 							SRPT_TARGET_NAME="${SRPT_TARGET_NAME} ${i}"
 							RET=0
-					else	
-						if [ "${l}" = "${i}" ]; then
-							SRPT_TARGET_NAME="${SRPT_TARGET_NAME} ${i}"
-							RET=0											
-						fi
 					fi
 				done
 			else
 				#Single target				
-				#SRPT_TARGET="${TARGET_BASE}/ib_srpt/${i}"
 				SRPT_TARGET_NAME="${i}"
 				return 0;
 			fi
@@ -283,9 +278,9 @@ l_start_service () {
 
 		srpt)
 			#Load Infiniband
-			if [ "${OCF_RESKEY_srpt_enable}" == "1" ]; then
+			if ${OCF_RESKEY_srpt_enable}; then
 				l_debug "Loading Infiniband Module"				
-				if [ "${OCF_RESKEY_srpt_disable_per_port}" = "0" ]; then
+				if ${OCF_RESKEY_srpt_disable_per_port}; then
 					l_load_module ib_srpt use_port_guid_in_session_name=1 one_target_per_port=1
 				else
 					l_load_module ib_srpt
@@ -296,7 +291,7 @@ l_start_service () {
 		
 		iscsi)		
 			#Load iSCSI modules and services		
-			if [ "${OCF_RESKEY_iscsi_enable}" == "1" ]; then		
+			if ${OCF_RESKEY_iscsi_enable}; then		
 				if [ ! "$(pidof ${ISCSI_DAEMON})" ]; then
 					l_load_module iscsi_scst || return 1			
 					ocf_run $ISCSI_DAEMON || return 1
@@ -322,7 +317,7 @@ l_stop_iscsi () {
 	fi
 	done
 	
-	#iSCSI: Close sessions
+	#iSCSI: Close sessions, not really needed
 	for i in `/bin/ls ${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions`; do
 		ocf_log warn "Force closing session to initiator ${i}"
         	echo "1" > "${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions/${i}/force_close"
@@ -361,7 +356,7 @@ SCSTTarget_start() {
 		l_start_service scst
 
 		# iSCSI		
-		if [ "${OCF_RESKEY_iscsi_enable}" == "1" ]; then
+		if ${OCF_RESKEY_iscsi_enable}; then
 		
 			# Start iSCSI			
 			l_start_service iscsi || l_exit "Unable to start iSCSI Daemon or Services!"			
@@ -382,7 +377,7 @@ SCSTTarget_start() {
 			# Set rel_tgt_id
 			if [ "${OCF_RESKEY_target_id}" != "0" ]; then
 				rel_target_id=$( expr 1000 + ${OCF_RESKEY_target_id} )
-				echo "$rel_target_id" > ${ISCSI_BASE}/${OCF_RESKEY_iqn}/rel_tgt_id || exit $OCF_ERR_GENERIC
+				echo "${rel_target_id}" > ${ISCSI_BASE}/${OCF_RESKEY_iqn}/rel_tgt_id || exit $OCF_ERR_GENERIC
 			fi			
 			
 			# Set Allowed Portals
@@ -419,19 +414,20 @@ SCSTTarget_start() {
 		fi
 
 		# Infiniband
-		if [ "${OCF_RESKEY_srpt_enable}" == "1" ]; then
+		if ${OCF_RESKEY_srpt_enable}; then
 			l_start_service srpt			
 			
 			for i in ${SRPT_TARGET_NAME}; do
 				l_debug "Enable Target ${i}"			
-				echo 1 > "${SRPT_TARGET}/${i}/enabled" || exit $OCF_ERR_GENERIC			
+				echo 1 > "${SRPT_TARGET}/${i}/enabled" || exit $OCF_ERR_GENERIC
+				echo $( expr "2000" + "${i}" ) > "${SRPT_TARGET}/${i}/rel_tgt_id" || exit $OCF_ERR_GENERIC
 			done
 			
 			l_debug "Infiniband: Started."
 		fi
 
 		#Debugging purpose
-		if [ "${OCF_RESKEY_debug_enable}" == "1" ]; then		
+		if ${OCF_RESKEY_debug_enable}; then		
 			scstadmin -write_config /tmp/scst.conf.start
 		fi
     return $OCF_SUCCESS
@@ -442,12 +438,14 @@ SCSTTarget_stop() {
 
    if [ $? =  $OCF_SUCCESS ]; then
 	local param
-	local ib_stop=false
-	local scst_stop=false
+	local srpt_stop=false
+	local scst_stop=0
+	local scst_stop_quorum=0
 	
 	# iSCSI	
-	if [ "${OCF_RESKEY_iscsi_enable}" == "1" ]; then	
-	
+	if ${OCF_RESKEY_iscsi_enable} ; then	
+		scst_stop_quorum=$( expr "${scst_stop_quorum}" + "1" )
+
 		ocf_log info "iSCSI target ${OCF_RESKEY_iqn}: Stopping..."
 	
 		# Check if there are connected luns
@@ -466,7 +464,7 @@ SCSTTarget_stop() {
 		ocf_log info "deleting iSCSI target ${OCF_RESKEY_iqn}"
 		echo "del_target ${OCF_RESKEY_iqn}" > ${ISCSI_BASE}/mgmt
 		if [ $? -ne 0 ]; then
-			ocf_log err "Unable to delete iSCSI target ${OCF_RESKY_iqn}"
+			ocf_log err "Unable to delete iSCSI target ${OCF_RESKEY_iqn}"
 			exit $OCF_ERR_GENERIC
 		fi
 		
@@ -474,46 +472,47 @@ SCSTTarget_stop() {
 		
 		# iSCSI: Stop Daemon and Modules
 		l_stop_iscsi
-		scst_stop=true
+
+		scst_stop=$( expr "${scst_stop}" + "1" )
 	fi
 	
 	# Infiniband: Stop only if target has no LUNs
 	# TODO: Stop infiniband only if there are no other targets active
-	if [ "${OCF_RESKEY_srpt_enable}" == "1" ]; then
+	if ${OCF_RESKEY_srpt_enable} ; then
 		
+		scst_stop_quorum=$( expr "${scst_stop_quorum}" + "1" )
 		# Check if there are connected luns
-		ib_stop=true
+		srpt_stop=true
     		for i in $( ls "${SRPT_TARGET}/${i}/luns" ) ; do    			
 			for l in ${SRPT_TARGET_NAME}; do
 				if [ -d "${SRPT_TARGET}/${i}/luns/${l}" ]; then
 					ocf_log warn "Unable to stop Infiniband target ${i}: lun ${l} connected!"
-					ib_stop=false
-					scst_stop=false   			
+					srpt_stop=false
 				fi
 			done			
 				
     		done		
 		
-		if ${ib_stop} ; then
+		if ${srpt_stop} ; then
 			for i in ${SRPT_TARGET_NAME}; do
 				l_debug "Disable Target ${i}"
 				echo 0 > "${SRPT_TARGET}/${i}/enabled" || exit $OCF_ERR_GENERIC			
 			done						
 			
-			l_debug "Unload ib_srpt"			
+			l_debug "Unload ib_srpt ..."			
 			rmmod ib_srpt
-			scst_stop=true	
+			scst_stop=$( expr "${scst_stop}" + "1" )	
 		fi		
 	fi	
 	
 	# Stop SCST
-	if ${scst_stop} ; then
+	if [ "${scst_stop_quorum}" == "${scst_stop}" ]; then
 		l_debug "Unloading SCST Module"
 		rmmod scst
 	fi
 
 	# Debugging purpose
-	if [ "${OCF_RESKEY_debug_enable}" == "1" ]; then	
+	if ${OCF_RESKEY_debug_enable} ; then	
 		scstadmin -write_config /tmp/scst.conf.stop
 	fi
 	
@@ -525,7 +524,7 @@ SCSTTarget_stop() {
 SCSTTarget_monitor() {
 	
 	# iSCSI	
-	if [ "${OCF_RESKEY_iscsi_enable}" == "1" ]; then	
+	if ${OCF_RESKEY_iscsi_enable}; then	
 		if [ -d "${ISCSI_BASE}/${OCF_RESKEY_iqn}" ]; then	 
 			return $OCF_SUCCESS
 		else    	
@@ -546,7 +545,7 @@ SCSTTarget_validate() {
 	local required_vars	
     
     
-   if [ "${OCF_RESKEY_iscsi_enable}" == "1" ]; then			
+   if ${OCF_RESKEY_iscsi_enable} ; then			
 	    required_vars="iqn"
 	    for var in ${required_vars}; do
 		param="OCF_RESKEY_${var}"
@@ -557,7 +556,7 @@ SCSTTarget_validate() {
 	    done
     fi	
     
-    #if [ "${OCF_RESKEY_srpt_enable}" == "1" ]; then
+    #if ${OCF_RESKEY_srpt_enable} ; then
     #	# Validate infiniband parameters
     #fi
 
