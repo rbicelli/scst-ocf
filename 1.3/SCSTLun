@@ -366,7 +366,7 @@ SCSTLun_start() {
 		for i in ${SRPT_TARGET_NAME}; do
 			if [ -d "${SRPT_TARGET}/${i}/luns" ]; then
 				ocf_log info "Adding LUN ${OCF_RESKEY_iscsi_lun}, device ${OCF_RESKEY_device_name}, ${i}"			
-				echo "add ${OCF_RESKEY_device_name} ${OCF_RESKEY_srpt_lun}" > "${SRPT_TARGET}/{i}/luns/mgmt"
+				echo "add ${OCF_RESKEY_device_name} ${OCF_RESKEY_srpt_lun}" > "${SRPT_TARGET}/${i}/luns/mgmt"
 				if [ $? -ne 0 ]; then
 					ocf_log err "FAILED to add Infiniband lun ${OCF_RESKEY_srpt_lun}"
 					return $OCF_ERR_GENERIC
