@@ -383,10 +383,10 @@ SCSTLun_start() {
 }
 
 SCSTLun_stop() {
-    #TODO: Drop Connection Function
+    #TODO: Drop Connection Function, make same for iSCSI and SRPT
     SCSTLun_monitor
     if [ $? =  $OCF_SUCCESS ]; then
-	
+	local clean_stop=false	
 	ocf_log info "Stopping lun ${OCF_RESKEY_iscsi_lun} on target ${OCF_RESKEY_target_iqn}"
 	# Disable Target
 		
@@ -395,7 +395,6 @@ SCSTLun_stop() {
 		ocf_log info "Disabling iSCSI target ${OCF_RESKEY_target_iqn}"
 		echo 0 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
 
-		local clean_stop=false
                 while ( count < 60); do
                         sleep 1
                         for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do
@@ -413,7 +412,7 @@ SCSTLun_stop() {
 
                 # Drop connections, only if session is using lun
                 if(!clean_stop); then
-                        for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do
+                        	for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do
                                         if [ -d "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/luns/${OCF_RESKEY_iscsi_lun}" ]; then
                                                 ocf_log warn "Force closing session to initiator ${i}"
                                                 echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/force_close"
@@ -429,6 +428,8 @@ SCSTLun_stop() {
 			return $OCF_ERR_GENERIC	
 			#Don't exit, try to remove device anyway.
 		fi
+		ocf_log info "Enabling target ${OCF_RESKEY_target_iqn}"
+		echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
 	fi
 	
 	
@@ -440,20 +441,35 @@ SCSTLun_stop() {
 
 		for i in ${SRPT_TARGET_NAME}; do
 			if [ -d "${SRPT_TARGET}/${i}/luns" ]; then
-				
-				for l in $( ls "${SRPT_TARGET}/${i}/sessions" ) ; do                
-					if [ -d "${SRPT_TARGET}/${i}/sessions/${l}/luns/${OCF_RESKEY_srpt_lun}" ]; then
-						ocf_log warn "Force closing SRPT session to initiator ${l}"
-			        		echo 1 > "${SRPT_TARGET}/${i}/sessions/${l}/force_close"
-					fi
-				done				
-				
+
 				ocf_log info "Removing LUN ${OCF_RESKEY_iscsi_lun}, SRPT device ${OCF_RESKEY_device_name}, ${i}"			
 				echo "del ${OCF_RESKEY_srpt_lun}" > "${SRPT_TARGET}/${i}/luns/mgmt"
 				if [ $? -ne 0 ]; then
 					ocf_log err "FAILED to Remove SRPT lun ${OCF_RESKEY_srpt_lun}"
 					return $OCF_ERR_GENERIC
 				fi
+				
+				while ( count < 60); do
+                        		sleep 1
+                        		for i in $( ls "${SRPT_TARGET}/${i}/sessions" ) ; do
+
+						if [ -d "${SRPT_TARGET}/${i}/sessions/${l}/luns/${OCF_RESKEY_srpt_lun}" ]; then
+							ocf_log warn "SRPT Session is still alive: ${i}"
+							clean_stop=false
+						else
+							clean_stop=true
+							continue
+						fi
+                        		done
+                        		count++
+				done
+				#drop connections 				
+				for l in $( ls "${SRPT_TARGET}/${i}/sessions" ) ; do                
+					if [ -d "${SRPT_TARGET}/${i}/sessions/${l}/luns/${OCF_RESKEY_srpt_lun}" ]; then
+						ocf_log warn "Force closing SRPT session to initiator ${l}"
+			        		echo 1 > "${SRPT_TARGET}/${i}/sessions/${l}/force_close"
+					fi
+				done				
 			fi
 		done
 	fi
@@ -465,15 +481,7 @@ SCSTLun_stop() {
 	if [ $? -ne 0 ]; then
 		ocf_log err "FAILED to remove device ${OCF_RESKEY_device_name}"
 		return $OCF_ERR_GENERIC
-	fi        
-
-        # Enable Target
-
-	#iSCSI
-	if ${OCF_RESKEY_iscsi_enable} ; then
-		ocf_log info "Enabling target ${OCF_RESKEY_target_iqn}"
-		echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
-	fi	
+	fi        	
         
 	#Stop Handler
         l_stop_handler || exit $OCF_ERR_GENERIC
