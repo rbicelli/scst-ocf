@@ -143,7 +143,7 @@ Enable infiniband support.
 The target resource has to set also with Infiniband enabled.
 </longdesc>
 <shortdesc lang="en">Enable Infiniband Support</shortdesc>
-<content type="string" />
+<content type="boolean" />
 </parameter>
 
 <parameter name="srpt_lun" required="0" unique="0">
