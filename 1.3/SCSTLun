@@ -474,7 +474,7 @@ SCSTLun_monitor() {
     local monitor_result=0
     local monitor_quorum=1
     if [ -e "${SCST_BASE}/handlers/${OCF_RESKEY_handler}/${OCF_RESKEY_device_name}" ]; then
-	$monitor_result=$( expr "${monitor_result}" + "1")	
+	monitor_result=$( expr "${monitor_result}" + "1")	
     fi
 	
     # Check if lun is running.
@@ -482,7 +482,7 @@ SCSTLun_monitor() {
     if ${OCF_RESKEY_iscsi_enable} ; then
 	    monitor_quorum=$( expr "${monitor_quorum}" + "1")	
 	    if [ -e "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/${OCF_RESKEY_iscsi_lun}" ]; then
-		$monitor_result=$( expr "${monitor_result}" + "1")
+		monitor_result=$( expr "${monitor_result}" + "1")
 	    fi
     fi	
     
@@ -493,9 +493,9 @@ SCSTLun_monitor() {
 		l_debug "target name is: ${i}"
 		monitor_quorum=$( expr "${monitor_quorum}" + "1")
 		if [ -e "${SRPT_TARGET}/${i}/luns/${OCF_RESKEY_srpt_lun}" ]; then
-			$monitor_result=$( expr "${monitor_result}" + "1")										
+			monitor_result=$( expr "${monitor_result}" + "1")										
 		else	
-			$monitor_result=$( expr "${monitor_result}" - "1")
+			monitor_result=$( expr "${monitor_result}" - "1")
 		fi
 	done
     fi
