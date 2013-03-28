@@ -471,16 +471,18 @@ SCSTLun_stop() {
 
 SCSTLun_monitor() {
     #Check if underlying device is configured
-    local monitor_result=$OCF_NOT_RUNNING
+    local monitor_result=0
+    local monitor_quorum=1
     if [ -e "${SCST_BASE}/handlers/${OCF_RESKEY_handler}/${OCF_RESKEY_device_name}" ]; then
-       return $OCF_SUCCESS
+	$monitor_result=$( expr "${monitor_result}" + "1")	
     fi
 	
     # Check if lun is running.
     #iSCSI
     if ${OCF_RESKEY_iscsi_enable} ; then
+	    monitor_quorum=$( expr "${monitor_quorum}" + "1")	
 	    if [ -e "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/${OCF_RESKEY_iscsi_lun}" ]; then
-		monitor_result=$OCF_SUCCESS
+		$monitor_result=$( expr "${monitor_result}" + "1")
 	    fi
     fi	
     
@@ -488,12 +490,20 @@ SCSTLun_monitor() {
     if ${OCF_RESKEY_srpt_enable} ; then
 	l_find_srpt_target_name
 	for i in ${SRPT_TARGET_NAME}; do
+		l_debug "target name is: ${i}"
+		monitor_quorum=$( expr "${monitor_quorum}" + "1")
 		if [ -e "${SRPT_TARGET}/${i}/luns/${OCF_RESKEY_srpt_lun}" ]; then
-			monitor_result=$OCF_SUCCESS		
+			$monitor_result=$( expr "${monitor_result}" + "1")										
+		else	
+			$monitor_result=$( expr "${monitor_result}" - "1")
 		fi
 	done
     fi
-    return $monitor_result
+    if [ "${monitor_result}" = "${monitor_quorum}" ]; then
+    	return $OCF_SUCCESS
+    else
+	return $OCF_NOT_RUNNING
+    fi
 }
 
 SCSTLun_validate() {
