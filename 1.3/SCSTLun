@@ -431,7 +431,7 @@ SCSTLun_stop() {
 				done				
 				
 				ocf_log info "Removing LUN ${OCF_RESKEY_iscsi_lun}, SRPT device ${OCF_RESKEY_device_name}, ${i}"			
-				echo "del ${OCF_RESKEY_device_name} ${OCF_RESKEY_srpt_lun}" > "${SRPT_TARGET}/{i}/luns/mgmt"
+				echo "del ${OCF_RESKEY_device_name} ${OCF_RESKEY_srpt_lun}" > "${SRPT_TARGET}/${i}/luns/mgmt"
 				if [ $? -ne 0 ]; then
 					ocf_log err "FAILED to Remove SRPT lun ${OCF_RESKEY_srpt_lun}"
 					return $OCF_ERR_GENERIC
