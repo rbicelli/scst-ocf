@@ -484,7 +484,7 @@ SCSTTarget_stop() {
 		scst_stop_quorum=$( expr "${scst_stop_quorum}" + "1" )
 		# Check if there are connected luns
 		srpt_stop=true
-    		for i in $( ls "${SRPT_TARGET}/${i}/luns" ) ; do    			
+    		for i in $( ls "${SRPT_TARGET}" ) ; do    			
 			for l in ${SRPT_TARGET_NAME}; do
 				if [ -d "${SRPT_TARGET}/${i}/luns/${l}" ]; then
 					ocf_log warn "Unable to stop Infiniband target ${i}: lun ${l} connected!"

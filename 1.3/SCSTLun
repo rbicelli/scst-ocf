@@ -438,7 +438,7 @@ SCSTLun_stop() {
 		
 	if ${OCF_RESKEY_srpt_enable} ; then
 		l_find_srpt_target_name
-
+		local clean_stop=false
 		for i in ${SRPT_TARGET_NAME}; do
 			if [ -d "${SRPT_TARGET}/${i}/luns" ]; then
 
@@ -464,12 +464,14 @@ SCSTLun_stop() {
                         		count++
 				done
 				#drop connections 				
-				for l in $( ls "${SRPT_TARGET}/${i}/sessions" ) ; do                
-					if [ -d "${SRPT_TARGET}/${i}/sessions/${l}/luns/${OCF_RESKEY_srpt_lun}" ]; then
-						ocf_log warn "Force closing SRPT session to initiator ${l}"
-			        		echo 1 > "${SRPT_TARGET}/${i}/sessions/${l}/force_close"
-					fi
-				done				
+				if(!clean_stop); then
+					for l in $( ls "${SRPT_TARGET}/${i}/sessions" ) ; do                
+						if [ -d "${SRPT_TARGET}/${i}/sessions/${l}/luns/${OCF_RESKEY_srpt_lun}" ]; then
+							ocf_log warn "Force closing SRPT session to initiator ${l}"
+			        			echo 1 > "${SRPT_TARGET}/${i}/sessions/${l}/force_close"
+						fi
+					done
+				fi				
 			fi
 		done
 	fi
