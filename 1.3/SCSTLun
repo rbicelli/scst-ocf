@@ -395,20 +395,38 @@ SCSTLun_stop() {
 		ocf_log info "Disabling iSCSI target ${OCF_RESKEY_target_iqn}"
 		echo 0 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
 
-		# Drop connections, only if session is using lun
-		for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do                
-			if [ -d "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/luns/${OCF_RESKEY_iscsi_lun}" ]; then
-				ocf_log warn "Force closing session to initiator ${i}"
-			        echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/force_close"
-			fi
-		done	
+		local clean_stop=false
+                while ( count < 60); do
+                        sleep 1
+                        for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do
+                                        if [ -d "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/luns/${OCF_RESKEY_iscsi_lun}" ];
+                                then
+                                        ocf_log warn "Session is still alive ${i}"
+                                        clean_stop=false
+                                else
+                                        clean_stop=true
+                                        continue
+                                fi
+                        done
+                        count++
+                done
+
+                # Drop connections, only if session is using lun
+                if(!clean_stop); then
+                        for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do
+                                        if [ -d "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/luns/${OCF_RESKEY_iscsi_lun}" ]; then
+                                                ocf_log warn "Force closing session to initiator ${i}"
+                                                echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/force_close"
+                                        fi
+                                done
+                fi
 	
 		#Remove LUN - iSCSI
 		ocf_log info "Removing LUN ${OCF_RESKEY_iscsi_lun}, device ${OCF_RESKEY_device_name}, iSCSI target ${OCF_RESKEY_target_iqn}"
 		echo "del ${OCF_RESKEY_iscsi_lun}" > ${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/mgmt
 		if [ $? -ne 0 ]; then
 			ocf_log err "FAILED to remove LUN ${OCF_RESKEY_iscsi_lun} from iSCSI target ${OCF_RESKEY_target_iqn}"
-			#return $OCF_ERR_GENERIC	
+			return $OCF_ERR_GENERIC	
 			#Don't exit, try to remove device anyway.
 		fi
 	fi
