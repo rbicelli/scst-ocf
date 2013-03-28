@@ -476,8 +476,8 @@ SCSTTarget_stop() {
 		scst_stop=$( expr "${scst_stop}" + "1" )
 	fi
 	
-	# Infiniband: Stop only if target has no LUNs
-	# TODO: Stop infiniband only if there are no other targets active
+	
+	# Infiniband: Stop only if target has no LUNs	
 	if ${OCF_RESKEY_srpt_enable} ; then
 		
 		scst_stop_quorum=$( expr "${scst_stop_quorum}" + "1" )
@@ -533,7 +533,7 @@ SCSTTarget_monitor() {
 	fi
 	
 	# Infiniband
-	if [ "${OCF_RESKEY_srpt_enable}" == "1" ]; then
+	if ${OCF_RESKEY_srpt_enable}; then
 		l_find_srpt_target_name	|| return $OCF_NOT_RUNNING
 	fi
 	
@@ -544,7 +544,11 @@ SCSTTarget_validate() {
 	# Do we have all required variables?
 	local required_vars	
     
-    
+   if [ ${OCF_RESKEY_iscsi_enable} = false ] &&  [ ${OCF_RESKEY_srpt_enable} = false ]; then
+   	ocf_log error "Please enable at least one target!"
+	exit $OCF_ERR_CONFIGURED
+   fi
+
    if ${OCF_RESKEY_iscsi_enable} ; then			
 	    required_vars="iqn"
 	    for var in ${required_vars}; do
