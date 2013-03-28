@@ -34,7 +34,13 @@
 # Initialization:
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
 #######################################################################
+# SRPT: Port List
+OCF_RESKEY_srpt_target_ports_default="all"
+: ${OCF_RESKEY_srpt_target_ports=${OCF_RESKEY_srpt_target_ports_default}}
+#######################################################################
+
 
 meta_data() {
 	cat <<END
@@ -53,11 +59,11 @@ an SCSI Target.
 
 <parameter name="iscsi_enable" required="0" unique="0">
 <longdesc lang="en">
-Enables iSCSI support. 0 for disabled, 1 for enabled.
+Enables iSCSI support.
 Default is disabled.
 </longdesc>
 <shortdesc lang="en">Enable iSCSI</shortdesc>
-<content type="string" />
+<content type="boolean" default="false" />
 </parameter>
 
 <parameter name="target_iqn" required="0" unique="0">
@@ -133,7 +139,7 @@ For example, "nv_cache=1".
 
 <parameter name="srpt_enable" required="0" unique="0">
 <longdesc lang="en">
-Enable infiniband support. For now works only with ib_srpt with default options.
+Enable infiniband support.
 The target resource has to set also with Infiniband enabled.
 </longdesc>
 <shortdesc lang="en">Enable Infiniband Support</shortdesc>
@@ -142,13 +148,13 @@ The target resource has to set also with Infiniband enabled.
 
 <parameter name="srpt_lun" required="0" unique="0">
 <longdesc lang="en">
-The Logical Unit number (LUN) exposed to infiniband.
+The Logical Unit number (LUN) exposed to SRPT HBA.
 </longdesc>
 <shortdesc lang="en">Logical Unit number (LUN)</shortdesc>
 <content type="integer" />
 </parameter>
 
-<parameter name="srpt_ports" required="0" unique="0">
+<parameter name="srpt_target_ports" required="0" unique="0">
 <longdesc lang="en">
 Space separated Port GUIDs list used for infiniband targets.
 Requires the parameters  use_node_guid_in_target_name=1 and
@@ -158,7 +164,7 @@ valid string is "GUID1 GUID2 GUID3 ... GUID100"
 Default the lun is mapped on all ports.
 </longdesc>
 <shortdesc lang="en">SRPT Ports GUIDs</shortdesc>
-<content type="atring" />
+<content type="string" default="${OCF_RESKEY_srpt_target_ports_default}"/>
 </parameter>
 
 <parameter name="debug_enable" required="0" unique="0">
@@ -169,7 +175,7 @@ Writes debug Messages to /tmp/scsttarget.log, scst configuration
 in /tmp/scst/conf.start and /tmp/scst.conf.stop
 </longdesc>
 <shortdesc lang="en">Enable Debug</shortdesc>
-<content type="string" />
+<content type="boolean" default="false" />
 </parameter>
 
 </parameters>
@@ -188,23 +194,18 @@ END
 
 # Initialization ######################################################
 
-# Set Infiniband Target to 0 by Default
-OCF_RESKEY_ib_target_default="0"
-: ${OCF_RESKEY_ib_target=${OCF_RESKEY_ib_target_default}}
-
 SYSFS_ROOTPATH="/sys/kernel/scst_tgt"
 SYSFS_PATH="/sys/kernel/scst_tgt/targets/iscsi"
 l_module=""
 SCST_BASE="/sys/kernel/scst_tgt"
 ISCSI_BASE="${SCST_BASE}/targets/iscsi"
-SRPT_BASE="${SCST_BASE}/targets/ib_srpt_target_${OCF_RESKEY_ib_target}"
 TARGET_BASE="${SCST_BASE}/targets"
-SRPT_TARGET=""
+SRPT_TARGET="${TARGET_BASE}/ib_srpt"
 SRPT_TARGET_NAME=""
 #######################################################################
 
 l_debug() {
-	if [ "${OCF_RESKEY_debug_enable}" == "1" ]; then	
+	if ${OCF_RESKEY_debug_enable}; then	
 		echo $1 >> /tmp/scstlun.log
 	fi
 	ocf_log debug $1
@@ -246,6 +247,7 @@ l_start_handler () {
 l_stop_handler () {
 	local HANDLER_NOT_REQUIRED=true;
 	#Check if handler is used for other devices, then unload module.
+	#TODO: if handler is vdisk*, cycle through handlers subdirs
 	
 	for i in $( ls "${SYSFS_ROOTPATH}/handlers/${OCF_RESKEY_handler}" ) ; do
 	if [ -d ${SYSFS_ROOTPATH}/handlers/${OCF_RESKEY_handler}/${i} ]; then
@@ -264,16 +266,24 @@ l_stop_handler () {
 }
 
 l_find_srpt_target_name () {
-	echo "Scanning ${TARGET_BASE}/ib_srpt" >> /tmp/scsttarget.log
- 	for i in $( ls "${TARGET_BASE}/ib_srpt" ) ; do
+	l_debug "Scanning ${TARGET_BASE}/ib_srpt"
+	local RET=1 	
+	SRPT_TARGET_NAME=""	
+	for i in $( ls "${TARGET_BASE}/ib_srpt" ) ; do
 		l_debug "Entering ${TARGET_BASE}/ib_srpt/${i}"
 		if [ -e "${TARGET_BASE}/ib_srpt/${i}/enabled" ]; then
 			l_debug "Found SRPT Target Name: ${i}"
-			ocf_log info "Found SRPT Target Name: ${i}"
-	                SRPT_TARGET="${TARGET_BASE}/ib_srpt/${i}"
-			SRPT_TARGET_NAME="${i}"
+	                # Cycle Through allowed targets
+			for l in ${OCF_RESKEY_srpt_target_ports} ; do
+				if [ "${OCF_RESKEY_srpt_target_ports}" = "all" ] || [ "${l}" = "${i}" ]; then
+					SRPT_TARGET_NAME="${SRPT_TARGET_NAME} ${i}"
+					RET=0
+				fi
+			done
 		fi
         done
+	
+	return $RET
 }
 
 SCSTLun_usage() {
@@ -334,7 +344,7 @@ SCSTLun_start() {
 	
 	# Assign Device to the Target
 	# iSCSI
-	if [ "${OCF_RESKEY_iscsi_enable}" == "1" ]; then
+	if ${OCF_RESKEY_iscsi_enable} ; then
 		ocf_log info "Adding LUN ${OCF_RESKEY_iscsi_lun}, device ${OCF_RESKEY_device_name}, target ${OCF_RESKEY_target_iqn}"
 		echo "add ${OCF_RESKEY_device_name} ${OCF_RESKEY_iscsi_lun}" > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/mgmt"
 			 if [ $? -ne 0 ]; then
@@ -351,18 +361,22 @@ SCSTLun_start() {
 	fi
 
 	# Infiniband
-	if [ "${OCF_RESKEY_srpt_enable}" == "1" ]; then
+	if ${OCF_RESKEY_srpt_enable} ; then
 		l_find_srpt_target_name
-		ocf_log info "Adding LUN ${OCF_RESKEY_iscsi_lun}, device ${OCF_RESKEY_device_name}, ${SRPT_TARGET_NAME}"			
-		echo "add ${OCF_RESKEY_device_name} ${OCF_RESKEY_srpt_lun}" > "${SRPT_TARGET}/luns/mgmt"
-		if [ $? -ne 0 ]; then
-			ocf_log err "FAILED to add Infiniband lun ${OCF_RESKEY_srpt_lun}"
-			return $OCF_ERR_GENERIC
-		fi
+		for i in ${SRPT_TARGET_NAME}; do
+			if [ -d "${SRPT_TARGET}/${i}/luns" ]; then
+				ocf_log info "Adding LUN ${OCF_RESKEY_iscsi_lun}, device ${OCF_RESKEY_device_name}, ${i}"			
+				echo "add ${OCF_RESKEY_device_name} ${OCF_RESKEY_srpt_lun}" > "${SRPT_TARGET}/{i}/luns/mgmt"
+				if [ $? -ne 0 ]; then
+					ocf_log err "FAILED to add Infiniband lun ${OCF_RESKEY_srpt_lun}"
+					return $OCF_ERR_GENERIC
+				fi
+			fi
+		done
 	fi
 
 	#Debugging purpose
-	if [ "${OCF_RESKEY_debug_enable}" == "1" ]; then		
+	if ${OCF_RESKEY_debug_enable}; then		
 		scstadmin -write_config /tmp/scst.conf.start
 	fi
     return $OCF_SUCCESS
@@ -377,7 +391,7 @@ SCSTLun_stop() {
 	# Disable Target
 		
 	# iSCSI	
-	if [ "${OCF_RESKEY_iscsi_enable}" == "1" ]; then	
+	if ${OCF_RESKEY_iscsi_enable} ; then	
 		ocf_log info "Disabling iSCSI target ${OCF_RESKEY_target_iqn}"
 		echo 0 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
 
@@ -403,25 +417,27 @@ SCSTLun_stop() {
 	#Infiniband
 	# Drop connections, only if session is using lun
 		
-	if [ "${OCF_RESKEY_srpt_enable}" == "1" ]; then	
+	if ${OCF_RESKEY_srpt_enable} ; then
 		l_find_srpt_target_name
-		
-		for i in $( ls "${SRPT_TARGET}/sessions" ) ; do                
-			if [ -d "${SRPT_TARGET}/sessions/${i}/luns/${OCF_RESKEY_srpt_lun}" ]; then
-				ocf_log warn "Force closing session to initiator ${i}"
-			        echo 1 > "${SRPT_BASE}/sessions/${i}/force_close"
+
+		for i in ${SRPT_TARGET_NAME}; do
+			if [ -d "${SRPT_TARGET}/${i}/luns" ]; then
+				
+				for l in $( ls "${SRPT_TARGET}/${i}/sessions" ) ; do                
+					if [ -d "${SRPT_TARGET}/${i}/sessions/${l}/luns/${OCF_RESKEY_srpt_lun}" ]; then
+						ocf_log warn "Force closing SRPT session to initiator ${l}"
+			        		echo 1 > "${SRPT_TARGET}/${i}/sessions/${l}/force_close"
+					fi
+				done				
+				
+				ocf_log info "Removing LUN ${OCF_RESKEY_iscsi_lun}, SRPT device ${OCF_RESKEY_device_name}, ${i}"			
+				echo "del ${OCF_RESKEY_device_name} ${OCF_RESKEY_srpt_lun}" > "${SRPT_TARGET}/{i}/luns/mgmt"
+				if [ $? -ne 0 ]; then
+					ocf_log err "FAILED to Remove SRPT lun ${OCF_RESKEY_srpt_lun}"
+					return $OCF_ERR_GENERIC
+				fi
 			fi
 		done
-		#Remove LUN - Infiniband
-		
-		
-		ocf_log info "Remove SRPT LUN ${OCF_RESKEY_srpt_lun}, device ${OCF_RESKEY_device_name}, ${SRPT_TARGET_NAME}"			
-		echo "del ${OCF_RESKEY_srpt_lun}" > ${SRPT_TARGET}/luns/mgmt
-		if [ $? -ne 0 ]; then
-			ocf_log err "FAILED to del Infiniband lun ${OCF_RESKEY_srpt_lun}"
-			return $OCF_ERR_GENERIC
-		fi
-			
 	fi
 
         # Close Device
@@ -436,7 +452,7 @@ SCSTLun_stop() {
         # Enable Target
 
 	#iSCSI
-	if [ "${OCF_RESKEY_iscsi_enable}" == "1" ]; then
+	if ${OCF_RESKEY_iscsi_enable} ; then
 		ocf_log info "Enabling target ${OCF_RESKEY_target_iqn}"
 		echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
 	fi	
@@ -445,7 +461,7 @@ SCSTLun_stop() {
         l_stop_handler || exit $OCF_ERR_GENERIC
 
 	#Debugging purpose
-	if [ "${OCF_RESKEY_debug_enable}" == "1" ]; then		
+	if ${OCF_RESKEY_debug_enable}; then		
 		scstadmin -write_config /tmp/scst.conf.stop
 	fi
     fi
@@ -462,19 +478,21 @@ SCSTLun_monitor() {
 	
     # Check if lun is running.
     #iSCSI
-    if [ "${OCF_RESKEY_iscsi_enable}" == "1" ]; then
+    if ${OCF_RESKEY_iscsi_enable} ; then
 	    if [ -e "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/${OCF_RESKEY_iscsi_lun}" ]; then
 		monitor_result=$OCF_SUCCESS
 	    fi
     fi	
     
     #Infiniband
-    if [ "${OCF_RESKEY_srpt_enable}" == "1" ]; then
-	    l_find_srpt_target_name
-	    if [ -e "${SRPT_TARGET}/luns/${OCF_RESKEY_srpt_lun}" ]; then
-		monitor_result=$OCF_SUCCESS
-	    fi
-    fi	
+    if ${OCF_RESKEY_srpt_enable} ; then
+	l_find_srpt_target_name
+	for i in ${SRPT_TARGET_NAME}; do
+		if [ -e "${SRPT_TARGET}/${i}/luns/${OCF_RESKEY_srpt_lun}" ]; then
+			monitor_result=$OCF_SUCCESS		
+		fi
+	done
+    fi
     return $monitor_result
 }
 

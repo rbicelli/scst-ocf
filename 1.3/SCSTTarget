@@ -416,11 +416,12 @@ SCSTTarget_start() {
 		# Infiniband
 		if ${OCF_RESKEY_srpt_enable}; then
 			l_start_service srpt			
-			
+			local tg_id=1
 			for i in ${SRPT_TARGET_NAME}; do
 				l_debug "Enable Target ${i}"			
+				echo $( expr "2000" + "${tg_id}" ) > "${SRPT_TARGET}/${i}/rel_tgt_id" || exit $OCF_ERR_GENERIC
 				echo 1 > "${SRPT_TARGET}/${i}/enabled" || exit $OCF_ERR_GENERIC
-				echo $( expr "2000" + "${i}" ) > "${SRPT_TARGET}/${i}/rel_tgt_id" || exit $OCF_ERR_GENERIC
+				tg_id=$( expr "${tg_id}" + "1" )
 			done
 			
 			l_debug "Infiniband: Started."
