@@ -474,6 +474,7 @@ SCSTLun_monitor() {
     local monitor_result=0
     local monitor_quorum=1
     if [ -e "${SCST_BASE}/handlers/${OCF_RESKEY_handler}/${OCF_RESKEY_device_name}" ]; then
+	l_debug "Device is Running"	
 	monitor_result=$( expr "${monitor_result}" + "1")	
     fi
 	
@@ -483,6 +484,7 @@ SCSTLun_monitor() {
 	    monitor_quorum=$( expr "${monitor_quorum}" + "1")	
 	    if [ -e "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/${OCF_RESKEY_iscsi_lun}" ]; then
 		monitor_result=$( expr "${monitor_result}" + "1")
+		l_debug "iSCSI LUN is Mapped"
 	    fi
     fi	
     
@@ -493,16 +495,20 @@ SCSTLun_monitor() {
 		l_debug "target name is: ${i}"
 		monitor_quorum=$( expr "${monitor_quorum}" + "1")
 		if [ -e "${SRPT_TARGET}/${i}/luns/${OCF_RESKEY_srpt_lun}" ]; then
-			monitor_result=$( expr "${monitor_result}" + "1")										
+			monitor_result=$( expr "${monitor_result}" + "1")
+			l_debug "SRPT Lun is Mapped"										
 		else	
 			monitor_result=$( expr "${monitor_result}" - "1")
+			l_debug "SRPT Lun is NOT Mapped"
 		fi
 	done
     fi
     if [ "${monitor_result}" = "${monitor_quorum}" ]; then
-    	return $OCF_SUCCESS
-    else
-	return $OCF_NOT_RUNNING
+	l_debug "Resource is Running"	    	
+	return $OCF_SUCCESS
+    else	
+	l_debug "Resource is NOT Running"	
+	return $OCF_NOT_RUNNING	
     fi
 }
 
