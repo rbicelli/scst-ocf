@@ -51,7 +51,6 @@ OCF_RESKEY_srpt_target_ports_default="all"
 # Lockfile, used for selecting a target ID
 LOCKFILE=${HA_RSCTMP}/SCSTTarget.lock
 TARGETSFILE=${HA_RSCTMP}/SCSTTarget.tgts
-TARGETS_RUNNING=0
 ocf_release_lock_on_exit $LOCKFILE
 
 
@@ -230,20 +229,25 @@ l_set_target_lock() {
 	if [ -e ${tgfile} ]; then
 		tgts=$( cat ${tgfile} )
 	fi
-	
-	TARGETS_RUNNING=${tgts} #Set Number of running targets BEFORE incrementing (Before Start)	
+	#If number of tgts is still 0 we have to start modules
+
 	if [ "$tgts" = "0" ]; then
 		tgts="1"
+		ret=2
 	else
+			
 		tgts=$( expr "${tgts}" + "${2}" )
+		if [ "${tgts}" = "0"  ]; then
+			#Targets Count is 0		
+			ret=0
+		else
+			#Targets are still alive			
+			ret=1
+		fi	
 	fi	
 	echo ${tgts} > ${tgfile}
+	return $ret
 	
-	if [ "${tgts}" = "0"  ]; then
-		return 0
-	else
-		return 1
-	fi
 }
 
 l_release_target_lock() {
@@ -388,6 +392,7 @@ SCSTTarget_start() {
     local value
     local initiator
     local rel_target_id
+    local t="0"
 		
 		ocf_take_lock $LOCKFILE
 		
@@ -453,15 +458,15 @@ SCSTTarget_start() {
 		fi
 
 		# Infiniband
-		local t=0
+		t=0
 		if ${OCF_RESKEY_srpt_enable}; then			
 			l_set_target_lock "srpt" "1"			
-			if [ "${TARGETS_RUNNING}" = "0" ]; then			
+			if [ $? -eq 2 ]; then			
 				l_start_service srpt			
 			fi
 			
 			for i in ${SRPT_TARGET_NAME}; do
-				t++				
+				t=$( expr "${t}" + "1" )				
 				l_debug "Enable Target ${i}"			
 				echo 1 > "${SRPT_TARGET}/${i}/enabled" || exit $OCF_ERR_GENERIC
 				echo $( expr "2000" + "${t}" ) > "${SRPT_TARGET}/${i}/rel_tgt_id" || ocf_log warn "Unable to set SRPT Target ID."
