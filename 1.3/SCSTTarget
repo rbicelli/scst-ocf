@@ -218,13 +218,12 @@ l_set_target_lock() {
 		tgts=$( cat ${tgfile} )
 	fi
 	tgts=$( expr ${tgts} + ${2} )
-	
+	echo ${tgts} > ${tgfile}
 	if [ "${tgts}" = "1"  ]; then
 		return 0
 	else
 		return 1
 	fi
-	echo ${tgts} > ${tgfile}
 }
 
 l_exit () {
