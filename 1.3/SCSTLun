@@ -465,10 +465,10 @@ SCSTLun_stop() {
 				while [ "${wait}" -lt "60" ]; do
                         		sleep 1
 					if [ -ne "${SRPT_TARGET}/${i}/sessions" ]; break; fi
-                        		for i in $( ls "${SRPT_TARGET}/${i}/sessions" ) ; do
+                        		for l in $( ls "${SRPT_TARGET}/${i}/sessions" ) ; do
 
 						if [ -e "${SRPT_TARGET}/${i}/sessions/${l}/luns/${OCF_RESKEY_srpt_lun}" ]; then
-							ocf_log warn "SRPT Session is still alive: ${i}"
+							ocf_log warn "SRPT Session is still alive: ${l}"
 						else
 							break
 						fi
