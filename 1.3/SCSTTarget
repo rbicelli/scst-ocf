@@ -232,7 +232,7 @@ l_set_target_lock() {
 		tgts=$( expr "${tgts}" + "${2}" )
 	fi
 	echo ${tgts} > ${tgfile}
-	if [ "${tgts}" = "1"  ]; then
+	if [ "${tgts}" = "0"  ]; then
 		return 0
 	else
 		return 1
