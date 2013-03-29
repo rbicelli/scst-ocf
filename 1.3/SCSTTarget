@@ -302,7 +302,7 @@ l_start_service () {
 			#Load Infiniband
 			if ${OCF_RESKEY_srpt_enable}; then
 				l_debug "Loading Infiniband Module"				
-				if ${OCF_RESKEY_srpt_disable_per_port}; then
+				if ! ${OCF_RESKEY_srpt_disable_per_port}; then
 					l_load_module ib_srpt use_port_guid_in_session_name=1 one_target_per_port=1
 				else
 					l_load_module ib_srpt
@@ -542,7 +542,7 @@ SCSTTarget_stop() {
 	fi	
 	
 	# Stop SCST
-	if [ "${scst_stop_quorum}" == "${scst_stop}" ]; then
+	if [ "${scst_stop_quorum}" = "${scst_stop}" ]; then
 		l_debug "Unloading SCST Module"
 		rmmod scst
 	fi
