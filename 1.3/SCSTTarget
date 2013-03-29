@@ -3,7 +3,7 @@
 #
 # 	SCSTTarget OCF RA. Exports and manages iSCSI SCST targets.
 #
-#   (c) 2012 Riccardo Bicelli
+#   (c) 2012-2013 Riccardo Bicelli
 #                 and Linux-HA contributors
 #
 # This program is free software; you can redistribute it and/or modify
@@ -49,7 +49,10 @@ OCF_RESKEY_srpt_target_ports_default="all"
 
 
 # Lockfile, used for selecting a target ID
-LOCKFILE=${HA_RSCTMP}/SCSTTarget-${OCF_RESKEY_implementation}.lock
+LOCKFILE=${HA_RSCTMP}/SCSTTarget.lock
+TARGETSFILE=${HA_RSCTMP}/SCSTTarget.tgts
+ocf_release_lock_on_exit $LOCKFILE
+
 ISCSI_DAEMON="/usr/local/sbin/iscsi-scstd"
 
 SCST_BASE="/sys/kernel/scst_tgt"
@@ -205,6 +208,25 @@ in /tmp/scst/scst.conf.start and /tmp/scst.conf.stop
 END
 }
 
+l_set_target_lock() {
+	# $1: string, used to set target type (srpt,fc ...)	
+	# $2: string, must be 1 or -1, used for incrementing or decrementing
+	# Return true if is the last target
+	local tgts="0"
+	local tgfile="${TARGETSFILE}.${1}"
+	if [ -e ${tgfile} ]; then
+		tgts=$( cat ${tgfile} )
+	fi
+	tgts=$( expr ${tgts} + ${2} )
+	
+	if [ "${tgts}" = "1"  ]; then
+		return 0
+	else
+		return 1
+	fi
+	echo ${tgts} > ${tgtfile}
+}
+
 l_exit () {
 	ocf_log err $1	
 	exit $OCF_ERROR_GENERIC
@@ -277,10 +299,10 @@ l_start_service () {
 		;;
 
 		srpt)
-			# Load Infiniband
+			#Load Infiniband
 			if ${OCF_RESKEY_srpt_enable}; then
 				l_debug "Loading Infiniband Module"				
-				if ! ${OCF_RESKEY_srpt_disable_per_port} ; then
+				if ${OCF_RESKEY_srpt_disable_per_port}; then
 					l_load_module ib_srpt use_port_guid_in_session_name=1 one_target_per_port=1
 				else
 					l_load_module ib_srpt
@@ -290,7 +312,7 @@ l_start_service () {
 		;;
 		
 		iscsi)		
-			# Load iSCSI modules and services		
+			#Load iSCSI modules and services		
 			if ${OCF_RESKEY_iscsi_enable}; then		
 				if [ ! "$(pidof ${ISCSI_DAEMON})" ]; then
 					l_load_module iscsi_scst || return 1			
@@ -352,6 +374,8 @@ SCSTTarget_start() {
     local initiator
     local rel_target_id
 		
+		ocf_take_lock $LOCKFILE
+		
 		# Start SCST
 		l_start_service scst
 
@@ -377,7 +401,7 @@ SCSTTarget_start() {
 			# Set rel_tgt_id
 			if [ "${OCF_RESKEY_target_id}" != "0" ]; then
 				rel_target_id=$( expr 1000 + ${OCF_RESKEY_target_id} )
-				echo "${rel_target_id}" > ${ISCSI_BASE}/${OCF_RESKEY_iqn}/rel_tgt_id || exit $OCF_ERR_GENERIC
+				echo "${rel_target_id}" > ${ISCSI_BASE}/${OCF_RESKEY_iqn}/rel_tgt_id  || ocf_log warn "Unable to set iSCSI Target ID."
 			fi			
 			
 			# Set Allowed Portals
@@ -415,16 +439,19 @@ SCSTTarget_start() {
 
 		# Infiniband
 		if ${OCF_RESKEY_srpt_enable}; then
-			l_start_service srpt			
-			local tg_id=1
+			l_set_target_lock "srpt" "1"			
+			if [ $? -eq 0 ]; then			
+				l_start_service srpt			
+			fi
+			
 			for i in ${SRPT_TARGET_NAME}; do
 				l_debug "Enable Target ${i}"			
-				echo $( expr "2000" + "${tg_id}" ) > "${SRPT_TARGET}/${i}/rel_tgt_id" || exit $OCF_ERR_GENERIC
 				echo 1 > "${SRPT_TARGET}/${i}/enabled" || exit $OCF_ERR_GENERIC
-				tg_id=$( expr "${tg_id}" + "1" )
+				echo $( expr "2000" + "${i}" ) > "${SRPT_TARGET}/${i}/rel_tgt_id" || ocf_log warn "Unable to set SRPT Target ID."
 			done
 			
 			l_debug "Infiniband: Started."
+					
 		fi
 
 		#Debugging purpose
@@ -436,13 +463,15 @@ SCSTTarget_start() {
 
 SCSTTarget_stop() {
     SCSTTarget_monitor
-
+   	
    if [ $? =  $OCF_SUCCESS ]; then
+	ocf_take_lock $LOCKFILE	
+	
 	local param
 	local srpt_stop=false
 	local scst_stop=0
 	local scst_stop_quorum=0
-	
+		
 	# iSCSI	
 	if ${OCF_RESKEY_iscsi_enable} ; then	
 		scst_stop_quorum=$( expr "${scst_stop_quorum}" + "1" )
@@ -477,8 +506,8 @@ SCSTTarget_stop() {
 		scst_stop=$( expr "${scst_stop}" + "1" )
 	fi
 	
-	
-	# Infiniband: Stop only if target has no LUNs	
+	# Infiniband: Stop only if target has no LUNs
+	# TODO: Stop infiniband only if there are no other targets active
 	if ${OCF_RESKEY_srpt_enable} ; then
 		
 		scst_stop_quorum=$( expr "${scst_stop_quorum}" + "1" )
@@ -495,14 +524,20 @@ SCSTTarget_stop() {
     		done		
 		
 		if ${srpt_stop} ; then
+			# Take care of lock
+			l_set_target_lock "srpt" "-1"			
 			for i in ${SRPT_TARGET_NAME}; do
 				l_debug "Disable Target ${i}"
 				echo 0 > "${SRPT_TARGET}/${i}/enabled" || exit $OCF_ERR_GENERIC			
 			done						
+			l_set_target_lock "srpt" "-1"			
 			
-			l_debug "Unload ib_srpt ..."			
-			rmmod ib_srpt
-			scst_stop=$( expr "${scst_stop}" + "1" )	
+			if [ $? -eq 0 ]; then			
+				l_debug "Unload ib_srpt ..."			
+				rmmod ib_srpt
+				scst_stop=$( expr "${scst_stop}" + "1" )
+			fi
+			
 		fi		
 	fi	
 	
@@ -534,7 +569,7 @@ SCSTTarget_monitor() {
 	fi
 	
 	# Infiniband
-	if ${OCF_RESKEY_srpt_enable}; then
+	if [ "${OCF_RESKEY_srpt_enable}" == "1" ]; then
 		l_find_srpt_target_name	|| return $OCF_NOT_RUNNING
 	fi
 	
@@ -545,11 +580,7 @@ SCSTTarget_validate() {
 	# Do we have all required variables?
 	local required_vars	
     
-   if [ ${OCF_RESKEY_iscsi_enable} = false ] &&  [ ${OCF_RESKEY_srpt_enable} = false ]; then
-   	ocf_log error "Please enable at least one target!"
-	exit $OCF_ERR_CONFIGURED
-   fi
-
+    
    if ${OCF_RESKEY_iscsi_enable} ; then			
 	    required_vars="iqn"
 	    for var in ${required_vars}; do
