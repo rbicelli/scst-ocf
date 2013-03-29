@@ -401,13 +401,13 @@ SCSTLun_stop() {
 	local clean_stop=false	
 	ocf_log info "Stopping lun ${OCF_RESKEY_iscsi_lun} on target ${OCF_RESKEY_target_iqn}"
 	# Disable Target
-		
+	local wait=0	
 	# iSCSI	
 	if ${OCF_RESKEY_iscsi_enable} ; then	
 		ocf_log info "Disabling iSCSI target ${OCF_RESKEY_target_iqn}"
 		echo 0 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
 
-                while ( count < 60); do
+                while [ "${wait}" -lt "60" ]; do
                         sleep 1
                         for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do
                                 if [ -d "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/luns/${OCF_RESKEY_iscsi_lun}" ]; then
@@ -418,7 +418,7 @@ SCSTLun_stop() {
                                         continue
                                 fi
                         done
-                        count++
+                        wait=$(expr "${wait}" + 1)
                 done
 
                 # Drop connections, only if session is using lun
@@ -460,7 +460,8 @@ SCSTLun_stop() {
 					return $OCF_ERR_GENERIC
 				fi
 				
-				while ( count < 60); do
+				wait=0
+				while [ "${wait}" -lt "60" ]; do
                         		sleep 1
                         		for i in $( ls "${SRPT_TARGET}/${i}/sessions" ) ; do
 
@@ -470,7 +471,7 @@ SCSTLun_stop() {
 							continue
 						fi
                         		done
-                        		count++
+                        		wait=$(expr "${wait}" + 1)
 				done
 				#drop connections 				
 				for l in $( ls "${SRPT_TARGET}/${i}/sessions" ) ; do                
