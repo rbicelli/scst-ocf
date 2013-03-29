@@ -409,6 +409,7 @@ SCSTLun_stop() {
 
                 while [ "${wait}" -lt "60" ]; do
                         sleep 1
+			if [ -ne "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ]; break; fi
                         for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do
                                 if [ -e "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/luns/${OCF_RESKEY_iscsi_lun}" ]; then
                                         ocf_log warn "Session is still alive ${i}"
@@ -463,6 +464,7 @@ SCSTLun_stop() {
 				wait=0
 				while [ "${wait}" -lt "60" ]; do
                         		sleep 1
+					if [ -ne "${SRPT_TARGET}/${i}/sessions" ]; break; fi
                         		for i in $( ls "${SRPT_TARGET}/${i}/sessions" ) ; do
 
 						if [ -e "${SRPT_TARGET}/${i}/sessions/${l}/luns/${OCF_RESKEY_srpt_lun}" ]; then
