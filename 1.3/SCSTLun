@@ -39,6 +39,18 @@
 # SRPT: Port List
 OCF_RESKEY_srpt_target_ports_default="all"
 : ${OCF_RESKEY_srpt_target_ports=${OCF_RESKEY_srpt_target_ports_default}}
+
+# Debug Enable
+OCF_RESKEY_debug_enable_default=false
+: ${OCF_RESKEY_debug_enable=${OCF_RESKEY_debug_enable_default}}
+
+# iscsi Enable
+OCF_RESKEY_srpt_enable_default=false
+: ${OCF_RESKEY_srpt_enable=${OCF_RESKEY_srpt_enable_default}}
+
+# srpt Enable
+OCF_RESKEY_iscsi_enable_default=false
+: ${OCF_RESKEY_iscsi_enable=${OCF_RESKEY_iscsi_enable_default}}
 #######################################################################
 
 
@@ -398,8 +410,7 @@ SCSTLun_stop() {
                 while ( count < 60); do
                         sleep 1
                         for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do
-                                        if [ -d "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/luns/${OCF_RESKEY_iscsi_lun}" ];
-                                then
+                                if [ -d "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/luns/${OCF_RESKEY_iscsi_lun}" ]; then
                                         ocf_log warn "Session is still alive ${i}"
                                         clean_stop=false
                                 else
