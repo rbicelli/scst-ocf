@@ -208,10 +208,19 @@ in /tmp/scst/scst.conf.start and /tmp/scst.conf.stop
 END
 }
 
+l_debug () {
+	# Instead of using the ocf_log function, write to a file
+	if ${OCF_RESKEY_debug_enable} ; then	
+		echo $1 >> /tmp/scsttarget.log
+	fi
+	ocf_log debug $1
+}
+
 l_set_target_lock() {
 	# $1: string, used to set target type (srpt,fc ...)	
 	# $2: string, must be 1 or -1, used for incrementing or decrementing
 	# Return true if is the last target
+	l_debug "Setting target lock $1:$2"
 	local tgts="0"
 	local tgfile="${TARGETSFILE}.${1}"
 	if [ -e ${tgfile} ]; then
@@ -237,14 +246,6 @@ l_release_target_lock() {
 l_exit () {
 	ocf_log err $1	
 	exit $OCF_ERROR_GENERIC
-}
-
-l_debug () {
-	# Instead of using the ocf_log function, write to a file
-	if ${OCF_RESKEY_debug_enable} ; then	
-		echo $1 >> /tmp/scsttarget.log
-	fi
-	ocf_log debug $1
 }
 
 l_find_srpt_target_name () {
