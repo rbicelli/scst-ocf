@@ -359,10 +359,12 @@ l_stop_iscsi () {
 	done
 	
 	#iSCSI: Close sessions, not really needed
+	if [ -e ${ISCSI_BASE}/${OCF_RESKEY_iqn} ]; then	
 	for i in `/bin/ls ${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions`; do
 		ocf_log warn "Force closing session to initiator ${i}"
         	echo "1" > "${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions/${i}/force_close"
     	done
+	fi
 
 	#Stop process and unload modules
 	if $ISCSI_TARGET_NOT_PRESENT ; then
