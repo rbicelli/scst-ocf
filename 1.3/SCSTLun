@@ -422,7 +422,7 @@ SCSTLun_stop() {
                 done
 
                 # Drop connections, only if session is using lun
-                if(!clean_stop); then
+                if ! $clean_stop; then
                         	for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do
                                         if [ -d "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/luns/${OCF_RESKEY_iscsi_lun}" ]; then
                                                 ocf_log warn "Force closing session to initiator ${i}"
@@ -466,9 +466,7 @@ SCSTLun_stop() {
 
 						if [ -d "${SRPT_TARGET}/${i}/sessions/${l}/luns/${OCF_RESKEY_srpt_lun}" ]; then
 							ocf_log warn "SRPT Session is still alive: ${i}"
-							clean_stop=false
 						else
-							clean_stop=true
 							continue
 						fi
                         		done
