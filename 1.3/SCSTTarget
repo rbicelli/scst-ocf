@@ -217,13 +217,21 @@ l_set_target_lock() {
 	if [ -e ${tgfile} ]; then
 		tgts=$( cat ${tgfile} )
 	fi
-	tgts=$( expr ${tgts} + ${2} )
+	if [ "$tgts" = "0" ]; then
+		tgts="1"
+	else
+		tgts=$( expr "${tgts}" + "${2}" )
+	fi
 	echo ${tgts} > ${tgfile}
 	if [ "${tgts}" = "1"  ]; then
 		return 0
 	else
 		return 1
 	fi
+}
+
+l_release_target_lock() {
+	rm ${TARGETSFILE}.${1} > /dev/null 2>&1
 }
 
 l_exit () {
@@ -523,18 +531,18 @@ SCSTTarget_stop() {
     		done		
 		
 		if ${srpt_stop} ; then
-			# Take care of lock
-			l_set_target_lock "srpt" "-1"			
+			# Take care of lock			
 			for i in ${SRPT_TARGET_NAME}; do
 				l_debug "Disable Target ${i}"
 				echo 0 > "${SRPT_TARGET}/${i}/enabled" || exit $OCF_ERR_GENERIC			
-			done						
-			l_set_target_lock "srpt" "-1"			
+			done									
 			
+			l_set_target_lock "srpt" "-1"
 			if [ $? -eq 0 ]; then			
 				l_debug "Unload ib_srpt ..."			
 				rmmod ib_srpt
 				scst_stop=$( expr "${scst_stop}" + "1" )
+				l_release_target_lock							
 			fi
 			
 		fi		
