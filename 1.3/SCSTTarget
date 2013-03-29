@@ -453,16 +453,18 @@ SCSTTarget_start() {
 		fi
 
 		# Infiniband
-		if ${OCF_RESKEY_srpt_enable}; then
+		local t=0
+		if ${OCF_RESKEY_srpt_enable}; then			
 			l_set_target_lock "srpt" "1"			
 			if [ "${TARGETS_RUNNING}" = "0" ]; then			
 				l_start_service srpt			
 			fi
 			
 			for i in ${SRPT_TARGET_NAME}; do
+				t++				
 				l_debug "Enable Target ${i}"			
 				echo 1 > "${SRPT_TARGET}/${i}/enabled" || exit $OCF_ERR_GENERIC
-				echo $( expr "2000" + "${i}" ) > "${SRPT_TARGET}/${i}/rel_tgt_id" || ocf_log warn "Unable to set SRPT Target ID."
+				echo $( expr "2000" + "${t}" ) > "${SRPT_TARGET}/${i}/rel_tgt_id" || ocf_log warn "Unable to set SRPT Target ID."
 			done
 			
 			l_debug "Infiniband: Started."
