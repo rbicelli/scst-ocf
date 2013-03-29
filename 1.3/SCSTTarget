@@ -572,7 +572,7 @@ SCSTTarget_stop() {
 	fi
 
 	# Debugging purpose
-	if ${OCF_RESKEY_debug_enable} ; then	
+	if ${OCF_RESKEY_debug_enable}; then	
 		scstadmin -write_config /tmp/scst.conf.stop
 	fi
 	
