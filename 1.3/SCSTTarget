@@ -51,7 +51,9 @@ OCF_RESKEY_srpt_target_ports_default="all"
 # Lockfile, used for selecting a target ID
 LOCKFILE=${HA_RSCTMP}/SCSTTarget.lock
 TARGETSFILE=${HA_RSCTMP}/SCSTTarget.tgts
+TARGETS_RUNNING=0
 ocf_release_lock_on_exit $LOCKFILE
+
 
 ISCSI_DAEMON="/usr/local/sbin/iscsi-scstd"
 
@@ -222,16 +224,21 @@ l_set_target_lock() {
 	# Return true if is the last target
 	l_debug "Setting target lock $1:$2"
 	local tgts="0"
+	local ret=0
 	local tgfile="${TARGETSFILE}.${1}"
+	
 	if [ -e ${tgfile} ]; then
 		tgts=$( cat ${tgfile} )
 	fi
+	
+	TARGETS_RUNNING=${tgts} #Set Number of running targets BEFORE incrementing (Before Start)	
 	if [ "$tgts" = "0" ]; then
 		tgts="1"
 	else
 		tgts=$( expr "${tgts}" + "${2}" )
-	fi
+	fi	
 	echo ${tgts} > ${tgfile}
+	
 	if [ "${tgts}" = "0"  ]; then
 		return 0
 	else
@@ -448,7 +455,7 @@ SCSTTarget_start() {
 		# Infiniband
 		if ${OCF_RESKEY_srpt_enable}; then
 			l_set_target_lock "srpt" "1"			
-			if [ $? -eq 0 ]; then			
+			if [ "${TARGETS_RUNNING}" = "0" ]; then			
 				l_start_service srpt			
 			fi
 			
@@ -543,7 +550,7 @@ SCSTTarget_stop() {
 				l_debug "Unload ib_srpt ..."			
 				rmmod ib_srpt
 				scst_stop=$( expr "${scst_stop}" + "1" )
-				l_release_target_lock							
+				l_release_target_lock "srpt"						
 			fi
 			
 		fi		
