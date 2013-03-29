@@ -224,7 +224,7 @@ l_set_target_lock() {
 	else
 		return 1
 	fi
-	echo ${tgts} > ${tgtfile}
+	echo ${tgts} > ${tgfile}
 }
 
 l_exit () {
