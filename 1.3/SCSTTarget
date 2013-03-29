@@ -47,6 +47,9 @@ OCF_RESKEY_srpt_disable_per_port_default=false
 OCF_RESKEY_srpt_target_ports_default="all"
 : ${OCF_RESKEY_srpt_target_ports=${OCF_RESKEY_srpt_target_ports_default}}
 
+# Target ID
+OCF_RESKEY_debug_enable_default=false
+: ${OCF_RESKEY_debug_enable=${OCF_RESKEY_debug_enable_default}}
 
 # Lockfile, used for selecting a target ID
 LOCKFILE=${HA_RSCTMP}/SCSTTarget.lock
@@ -360,10 +363,10 @@ l_stop_iscsi () {
 	
 	#iSCSI: Close sessions, not really needed
 	if [ -e ${ISCSI_BASE}/${OCF_RESKEY_iqn} ]; then	
-	for i in `/bin/ls ${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions`; do
-		ocf_log warn "Force closing session to initiator ${i}"
-        	echo "1" > "${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions/${i}/force_close"
-    	done
+		for i in `/bin/ls ${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions`; do
+			ocf_log warn "Force closing session to initiator ${i}"
+			echo "1" > "${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions/${i}/force_close"
+	    	done
 	fi
 
 	#Stop process and unload modules
