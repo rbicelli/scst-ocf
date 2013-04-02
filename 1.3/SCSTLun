@@ -375,12 +375,12 @@ l_shutdown_iscsi() {
 	local tid="-1"
 	local sid="-1"
 	local cid="-1"
-	for ltarget in ${TGT_LIST} ; do
-			tid=$( cat	"${TARGET_BASE}/${TGT_TYPE}/${ltarget}/tid" )
+		for ltarget in ${TGT_LIST} ; do
+			tid=$( cat "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/tid" )
 			if [ -d "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/luns" ]; then
 					 				
 				for session in $( ls "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions" ) ; do                
-					if [ -e "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/luns/${LLUN}" ]; then
+					if [ -d "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/luns/${LLUN}" ]; then
 						ocf_log warn "Session ${session} active on ${TGT_TYPE} lun ${LLUN}."
 						sid=$(cat "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/sid")
 						
@@ -388,7 +388,7 @@ l_shutdown_iscsi() {
 							if [ -e "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/${connection}/cid" ]; then
 								# Have the cid, issue command!
 								cid=$( cat "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/${connection}/cid" )
-								ocf_log "Running iscsi-scst-adm --op delete --tid=${tid} --sid=${sid} --cid=${cid}"
+								ocf_log info "Running iscsi-scst-adm --op delete --tid=${tid} --sid=${sid} --cid=${cid}"
 								ocf_run iscsi-scst-adm --op delete --tid=${tid} --sid=${sid} --cid=${cid}
 							fi
 						done

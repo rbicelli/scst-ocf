@@ -399,7 +399,7 @@ l_shutdown_iscsi() {
 						if [ -e "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/${connection}/cid" ]; then
 							# Have the cid, issue command!
 							cid=$( cat "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/${connection}/cid" )
-							ocf_log "Running iscsi-scst-adm --op delete --tid=${tid} --sid=${sid} --cid=${cid}"
+							ocf_log info "Running iscsi-scst-adm --op delete --tid=${tid} --sid=${sid} --cid=${cid}"
 							ocf_run iscsi-scst-adm --op delete --tid=${tid} --sid=${sid} --cid=${cid}
 						fi
 					done
