@@ -323,14 +323,14 @@ local TGT_LIST="${2}"
 local LLUN="${3}"
 
 local sessions_active="1"
-local wait="1"	
+local wait="1"
+	
 	while [ "${wait}" -lt "${OCF_RESKEY_wait_timeout}"]; do
 	
 		for i in ${TGT_LIST}; do
 				
 			if [ -d "${TARGET_BASE}/${TGT_TYPE}/${i}/luns" ]; then
-					
-				#Drop connections 				
+					 				
 				for session in $( ls "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions" ) ; do                
 					if [ -e "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions/${session}/luns/${LLUN}" ]; then
 						ocf_log warn "Session ${session} still active on ${TGT_TYPE} lun ${LLUN}."
@@ -349,9 +349,26 @@ local wait="1"
 			
 		sessions_active="1"
 	done
+	# Timeout Expired, Force Close
+		for i in ${TGT_LIST}; do
+				
+			if [ -d "${TARGET_BASE}/${TGT_TYPE}/${i}/luns" ]; then
+					 				
+				for session in $( ls "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions" ) ; do                
+					if [ -e "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions/${session}/luns/${LLUN}" ]; then
+						ocf_log warn "Force closing ${TGT_TYPE} session to initiator ${session} - LUN ${LLUN}"
+						echo 1 > "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions/${session}/force_close"
+					fi					
+				done				
+			fi
+		done	
+	
 	return 1
 }
 
+l_drop_sessions() {
+
+}
 
 SCSTLun_usage() {
 	cat <<END
@@ -454,11 +471,7 @@ SCSTLun_stop() {
 
     SCSTLun_monitor
     if [ $? =  $OCF_SUCCESS ]; then
-	local clean_stop=false	
 	ocf_log info "Stopping lun ${OCF_RESKEY_iscsi_lun} on target ${OCF_RESKEY_target_iqn}"
-	# Disable Target
-	local wait=0
-	local sessions_active=1
 	
 	# iSCSI	
 	if ${OCF_RESKEY_iscsi_enable} ; then	
@@ -495,40 +508,13 @@ SCSTLun_stop() {
 	fi
 	
 	if ${OCF_RESKEY_iscsi_enable} ; then	
-								
 		l_graceful_close_sessions "iscsi" "${OCF_RESKEY_target_iqn}" "${OCF_RESKEY_iscsi_lun}"
-		
-		if [ $? -ne 0 ]; then
-			for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do
-				if [ -d "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/luns/${OCF_RESKEY_iscsi_lun}" ]; then
-					ocf_log warn "Force closing session to initiator ${i}"
-					echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/force_close"
-				fi
-		        done
-		fi
-		
 		# ocf_log info "Enabling target ${OCF_RESKEY_target_iqn}"
 		# echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"	
 	fi
 	
 	if ${OCF_RESKEY_srpt_enable} ; then #Infiniband
-		
-		l_graceful_close_sessions "srpt" "${SRPT_TARGET_NAME}" "${OCF_RESKEY_srpt_lun}"
-		
-		if [ $? -ne 0 ]; then	
-			for i in ${SRPT_TARGET_NAME}; do
-				
-				if [ -d "${SRPT_TARGET}/${i}/luns" ]; then	
-					#Drop connections 				
-					for session in $( ls "${SRPT_TARGET}/${i}/sessions" ) ; do                
-						if [ -e "${SRPT_TARGET}/${i}/sessions/${session}/luns/${OCF_RESKEY_srpt_lun}" ]; then
-							ocf_log warn "Force closing SRPT session to initiator ${session}"
-							echo 1 > "${SRPT_TARGET}/${i}/sessions/${session}/force_close"
-						fi
-					done				
-				fi
-			done
-		fi	
+		l_graceful_close_sessions "ib_srpt" "${SRPT_TARGET_NAME}" "${OCF_RESKEY_srpt_lun}"	
 	fi
 
         # Close Device
