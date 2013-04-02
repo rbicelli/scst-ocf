@@ -388,7 +388,7 @@ l_shutdown_iscsi() {
 							if [ -e "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/${connection}/cid" ]; then
 								# Have the cid, issue command!
 								cid=$( cat "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/${connection}/cid" )
-								ocf_log info "Running iscsi-scst-adm --op delete --tid=${tid} --sid=${sid} --cid=${cid}"
+								l_debug "Running iscsi-scst-adm --op delete --tid=${tid} --sid=${sid} --cid=${cid}"
 								ocf_run iscsi-scst-adm --op delete --tid=${tid} --sid=${sid} --cid=${cid}
 							fi
 						done
@@ -510,6 +510,8 @@ SCSTLun_stop() {
 		# Try to remove LUN - iSCSI
 		l_shutdown_iscsi "${OCF_RESKEY_target_iqn}" "${OCF_RESKEY_iscsi_lun}"
 		
+		l_graceful_close_sessions "iscsi" "${OCF_RESKEY_target_iqn}" "${OCF_RESKEY_iscsi_lun}"
+
 		ocf_log info "Removing LUN ${OCF_RESKEY_iscsi_lun}, device ${OCF_RESKEY_device_name}, iSCSI target ${OCF_RESKEY_target_iqn}"
 		echo "del ${OCF_RESKEY_iscsi_lun}" > ${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/mgmt
 
@@ -539,11 +541,11 @@ SCSTLun_stop() {
 		done
 	fi
 	
-	if ${OCF_RESKEY_iscsi_enable} ; then	
-		l_graceful_close_sessions "iscsi" "${OCF_RESKEY_target_iqn}" "${OCF_RESKEY_iscsi_lun}"
-		# ocf_log info "Enabling target ${OCF_RESKEY_target_iqn}"
-		# echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"	
-	fi
+	#if ${OCF_RESKEY_iscsi_enable} ; then	
+	#	l_graceful_close_sessions "iscsi" "${OCF_RESKEY_target_iqn}" "${OCF_RESKEY_iscsi_lun}"
+	#	# ocf_log info "Enabling target ${OCF_RESKEY_target_iqn}"
+	#	# echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"	
+	#fi
 	
 	if ${OCF_RESKEY_srpt_enable} ; then #Infiniband
 		l_graceful_close_sessions "ib_srpt" "${SRPT_TARGET_NAME}" "${OCF_RESKEY_srpt_lun}"	
