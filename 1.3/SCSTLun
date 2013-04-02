@@ -332,7 +332,7 @@ local wait="1"
 			if [ -d "${TARGET_BASE}/${TGT_TYPE}/${i}/luns" ]; then
 					 				
 				for session in $( ls "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions" ) ; do                
-					if [ -e "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions/${session}/luns/${LLUN}" ]; then
+					if [ -d "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions/${session}/luns/${LLUN}" ]; then
 						ocf_log warn "Session ${session} still active on ${TGT_TYPE} lun ${LLUN}."
 						sessions_active=$( expr "${sessions_active}" + "1" )
 					fi					
@@ -356,7 +356,7 @@ local wait="1"
 			if [ -d "${TARGET_BASE}/${TGT_TYPE}/${i}/luns" ]; then
 					 				
 				for session in $( ls "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions" ) ; do                
-					if [ -e "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions/${session}/luns/${LLUN}" ]; then
+					if [ -d "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions/${session}/luns/${LLUN}" ]; then
 						ocf_log warn "Force closing ${TGT_TYPE} session to initiator ${session} - LUN ${LLUN}"
 						echo 1 > "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions/${session}/force_close"
 					fi					
