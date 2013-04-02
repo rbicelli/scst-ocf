@@ -53,7 +53,7 @@ OCF_RESKEY_iscsi_enable_default=false
 : ${OCF_RESKEY_iscsi_enable=${OCF_RESKEY_iscsi_enable_default}}
 
 # Wait timeout
-OCF_RESKEY_wait_timeout_default=60
+OCF_RESKEY_wait_timeout_default="60"
 : ${OCF_RESKEY_wait_timeout=${OCF_RESKEY_wait_timeout_default}}
 
 #######################################################################
@@ -325,7 +325,7 @@ local LLUN="${3}"
 local sessions_active="1"
 local wait="1"
 	
-	while [ "${wait}" -lt "${OCF_RESKEY_wait_timeout}"]; do
+	while [ "${wait}" -lt "${OCF_RESKEY_wait_timeout}" ]; do
 	
 		for i in ${TGT_LIST}; do
 				
@@ -349,6 +349,7 @@ local wait="1"
 			
 		sessions_active="1"
 	done
+
 	# Timeout Expired, Force Close
 		for i in ${TGT_LIST}; do
 				
