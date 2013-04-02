@@ -366,10 +366,6 @@ local wait="1"
 	return 1
 }
 
-l_drop_sessions() {
-
-}
-
 SCSTLun_usage() {
 	cat <<END
 usage: $0 {start|stop|status|monitor|validate-all|meta-data}
@@ -484,8 +480,7 @@ SCSTLun_stop() {
 
 		if [ $? -ne 0 ]; then
 			ocf_log err "FAILED to remove LUN ${OCF_RESKEY_iscsi_lun} from iSCSI target ${OCF_RESKEY_target_iqn}"
-			return $OCF_ERR_GENERIC	
-			# Don't exit, try to remove device anyway.
+			return $OCF_ERR_GENERIC
 		fi
 	
 	fi
