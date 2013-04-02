@@ -59,6 +59,9 @@ OCF_RESKEY_srpt_enable_default=false
 OCF_RESKEY_iscsi_enable_default=false
 : ${OCF_RESKEY_iscsi_enable=${OCF_RESKEY_iscsi_enable_default}}
 
+# Wait timeout
+OCF_RESKEY_wait_timeout_default="60"
+: ${OCF_RESKEY_wait_timeout=${OCF_RESKEY_wait_timeout_default}}
 
 # Lockfile, used for selecting a target ID
 LOCKFILE=${HA_RSCTMP}/SCSTTarget.lock
@@ -194,6 +197,14 @@ Disables SRPT per-port mode.
 Default is enabled.</longdesc>
 <shortdesc lang="en">Disables SRPT per-port mode</shortdesc>
 <content type="boolean" default="false"/>
+</parameter>
+
+<parameter name="wait_timeout" required="0" unique="0">
+<longdesc lang="en">
+Set timeout for graceful lun stop loop.
+</longdesc>
+<shortdesc lang="en">Set timeout for graceful lun stop loop</shortdesc>
+<content type="integer" default="${OCF_RESKEY_wait_timeout_default}" />
 </parameter>
 
 <parameter name="debug_enable" required="0" unique="0">
@@ -528,7 +539,8 @@ SCSTTarget_stop() {
 	local srpt_stop=false
 	local scst_stop=0
 	local scst_stop_quorum=0
-		
+	local wait="1"
+	
 	# iSCSI	
 	if ${OCF_RESKEY_iscsi_enable} ; then	
 		scst_stop_quorum=$( expr "${scst_stop_quorum}" + "1" )
@@ -542,15 +554,24 @@ SCSTTarget_stop() {
 			exit $OCF_ERR_GENERIC
 	    		fi
 	    	done			
-	
+
+		
 		# iSCSI: Disable Target
 		ocf_log info "disabling iSCSI target ${OCF_RESKEY_iqn}"
 		echo 0 > ${ISCSI_BASE}/${OCF_RESKEY_iqn}/enabled || exit $OCF_ERR_GENERIC
 		
 		l_shutdown_iscsi
-
+		
 		# iSCSI: Remove Target
 		ocf_log info "deleting iSCSI target ${OCF_RESKEY_iqn}"
+		
+		for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions" ) ; do
+	    		if [ -d "${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions/${i}" ]; then
+				ocf_log warn "Force Close Session ${i}"				
+				echo 1 > ${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions/${i}/force_close			
+	    		fi
+	    	done
+			
 		echo "del_target ${OCF_RESKEY_iqn}" > ${ISCSI_BASE}/mgmt
 		if [ $? -ne 0 ]; then
 			ocf_log err "Unable to delete iSCSI target ${OCF_RESKEY_iqn}"
