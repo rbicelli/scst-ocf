@@ -376,7 +376,7 @@ l_shutdown_iscsi() {
 	local sid="-1"
 	local cid="-1"
 	for ltarget in ${TGT_LIST} ; do
-			ltarget=$( cat	"${TARGET_BASE}/${TGT_TYPE}/${ltarget}/tid" )
+			tid=$( cat	"${TARGET_BASE}/${TGT_TYPE}/${ltarget}/tid" )
 			if [ -d "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/luns" ]; then
 					 				
 				for session in $( ls "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions" ) ; do                
@@ -398,6 +398,7 @@ l_shutdown_iscsi() {
 		done
 	
 }
+
 SCSTLun_usage() {
 	cat <<END
 usage: $0 {start|stop|status|monitor|validate-all|meta-data}

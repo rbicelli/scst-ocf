@@ -369,14 +369,6 @@ l_stop_iscsi () {
 		ISCSI_TARGET_NOT_PRESENT=false
 	fi
 	done
-	
-	#iSCSI: Close sessions, not really needed
-	if [ -e ${ISCSI_BASE}/${OCF_RESKEY_iqn} ]; then	
-		for i in `/bin/ls ${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions`; do
-			ocf_log warn "Force closing session to initiator ${i}"
-			echo "1" > "${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions/${i}/force_close"
-	    	done
-	fi
 
 	#Stop process and unload modules
 	if $ISCSI_TARGET_NOT_PRESENT ; then
@@ -385,6 +377,35 @@ l_stop_iscsi () {
 		pkill -TERM -f $ISCSI_DAEMON	
 		rmmod iscsi_scst	
 	fi
+}
+
+
+l_shutdown_iscsi() {
+	# Shuts Down iSCSI sessions
+	local TGT_TYPE="iscsi"
+	local tid="-1"
+	local sid="-1"
+	local cid="-1"
+	local ltarget="${OCF_RESKY_iqn}"
+			
+			tid=$( cat"${TARGET_BASE}/${TGT_TYPE}/${ltarget}/tid" )
+					 				
+			for session in $( ls "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions" ) ; do                
+				if [ -e "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/luns/${LLUN}" ]; then
+					ocf_log warn "Session ${session} active on ${TGT_TYPE} lun ${LLUN}."
+					sid=$(cat "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/sid")
+						
+					for connection in  $( ls "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}" ) ; do
+						if [ -e "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/${connection}/cid" ]; then
+							# Have the cid, issue command!
+							cid=$( cat "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/${connection}/cid" )
+							ocf_log "Running iscsi-scst-adm --op delete --tid=${tid} --sid=${sid} --cid=${cid}"
+							ocf_run iscsi-scst-adm --op delete --tid=${tid} --sid=${sid} --cid=${cid}
+						fi
+					done
+				fi					
+			done				
+	
 }
 
 SCSTTarget_usage() {
@@ -513,7 +534,7 @@ SCSTTarget_stop() {
 		scst_stop_quorum=$( expr "${scst_stop_quorum}" + "1" )
 
 		ocf_log info "iSCSI target ${OCF_RESKEY_iqn}: Stopping..."
-	
+		
 		# Check if there are connected luns
 	    	for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_iqn}/luns" ) ; do
 	    		if [ -d "${ISCSI_BASE}/${OCF_RESKEY_iqn}/luns/${i}" ]; then
@@ -526,6 +547,8 @@ SCSTTarget_stop() {
 		ocf_log info "disabling iSCSI target ${OCF_RESKEY_iqn}"
 		echo 0 > ${ISCSI_BASE}/${OCF_RESKEY_iqn}/enabled || exit $OCF_ERR_GENERIC
 		
+		l_shutdown_iscsi
+
 		# iSCSI: Remove Target
 		ocf_log info "deleting iSCSI target ${OCF_RESKEY_iqn}"
 		echo "del_target ${OCF_RESKEY_iqn}" > ${ISCSI_BASE}/mgmt
