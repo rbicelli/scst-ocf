@@ -200,7 +200,7 @@ Writes debug Messages to /tmp/scsttarget.log, scst configuration
 in /tmp/scst/conf.start and /tmp/scst.conf.stop
 </longdesc>
 <shortdesc lang="en">Enable Debug</shortdesc>
-<content type="boolean" default="false" />
+<content type="boolean" default="${OCF_RESKEY_debug_enable_default}" />
 </parameter>
 
 </parameters>
