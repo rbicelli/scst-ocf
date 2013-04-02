@@ -367,6 +367,37 @@ local wait="1"
 	return 1
 }
 
+l_shutdown_iscsi() {
+	# Shuts Down iSCSI sessions
+	local TGT_LIST="${1}"
+	local TGT_TYPE="iscsi"
+	local LLUN="${2}"
+	local tid="-1"
+	local sid="-1"
+	local cid="-1"
+	for ltarget in ${TGT_LIST} ; do
+			ltarget=$( cat	"${TARGET_BASE}/${TGT_TYPE}/${ltarget}/tid" )
+			if [ -d "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/luns" ]; then
+					 				
+				for session in $( ls "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions" ) ; do                
+					if [ -e "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/luns/${LLUN}" ]; then
+						ocf_log warn "Session ${session} active on ${TGT_TYPE} lun ${LLUN}."
+						sid=$(cat "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/sid")
+						
+						for connection in  $( ls "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}" ) ; do
+							if [ -e "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/${connection}/cid" ]; then
+								# Have the cid, issue command!
+								cid=$( cat "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/${connection}/cid" )
+								ocf_log "Running iscsi-scst-adm --op delete --tid=${tid} --sid=${sid} --cid=${cid}"
+								ocf_run iscsi-scst-adm --op delete --tid=${tid} --sid=${sid} --cid=${cid}
+							fi
+						done
+					fi					
+				done				
+			fi
+		done
+	
+}
 SCSTLun_usage() {
 	cat <<END
 usage: $0 {start|stop|status|monitor|validate-all|meta-data}
@@ -472,10 +503,12 @@ SCSTLun_stop() {
 	
 	# iSCSI	
 	if ${OCF_RESKEY_iscsi_enable} ; then	
-		# ocf_log info "Disabling iSCSI target ${OCF_RESKEY_target_iqn}"
-		# echo 0 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"		
+		ocf_log info "Disabling iSCSI target ${OCF_RESKEY_target_iqn}"
+		echo 0 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"		
 		
 		# Try to remove LUN - iSCSI
+		l_shutdown_iscsi "${OCF_RESKEY_target_iqn}" "${OCF_RESKEY_iscsi_lun}"
+		
 		ocf_log info "Removing LUN ${OCF_RESKEY_iscsi_lun}, device ${OCF_RESKEY_device_name}, iSCSI target ${OCF_RESKEY_target_iqn}"
 		echo "del ${OCF_RESKEY_iscsi_lun}" > ${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/mgmt
 
@@ -484,6 +517,8 @@ SCSTLun_stop() {
 			return $OCF_ERR_GENERIC
 		fi
 	
+		ocf_log info "Enabling target ${OCF_RESKEY_target_iqn}"
+		echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
 	fi
 	
 	if ${OCF_RESKEY_srpt_enable} ; then
@@ -546,7 +581,7 @@ SCSTLun_monitor() {
 	
     # Check if lun is running.
     #iSCSI
-    if ${OCF_RESKEY_iscsi_enable} ; then
+    if ${OCF_RESKEY_iscsi_enable}; then
 	    monitor_quorum=$( expr "${monitor_quorum}" + "1")	
 	    if [ -e "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/${OCF_RESKEY_iscsi_lun}" ]; then
 		monitor_result=$( expr "${monitor_result}" + "1")
@@ -555,7 +590,7 @@ SCSTLun_monitor() {
     fi	
     
     #Infiniband
-    if ${OCF_RESKEY_srpt_enable} ; then
+    if ${OCF_RESKEY_srpt_enable}; then
 	l_find_srpt_target_name
 	for i in ${SRPT_TARGET_NAME}; do
 		l_debug "target name is: ${i}"
