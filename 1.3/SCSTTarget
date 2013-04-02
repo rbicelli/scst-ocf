@@ -388,7 +388,7 @@ l_shutdown_iscsi() {
 	local cid="-1"
 	local ltarget="${OCF_RESKY_iqn}"
 			
-			tid=$( cat"${TARGET_BASE}/${TGT_TYPE}/${ltarget}/tid" )
+			tid=$( cat "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/tid" )
 					 				
 			for session in $( ls "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions" ) ; do                
 				if [ -e "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/luns/${LLUN}" ]; then
