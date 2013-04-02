@@ -386,7 +386,7 @@ l_shutdown_iscsi() {
 	local tid="-1"
 	local sid="-1"
 	local cid="-1"
-	local ltarget="${OCF_RESKY_iqn}"
+	local ltarget="${OCF_RESKEY_iqn}"
 			
 			tid=$( cat "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/tid" )
 					 				
