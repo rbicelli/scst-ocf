@@ -327,7 +327,7 @@ local wait="1"
 	
 	while [ "${wait}" -lt "${OCF_RESKEY_wait_timeout}" ]; do
 	
-		for i in ${TGT_LIST}; do
+		for i in ${TGT_LIST} ; do
 				
 			if [ -d "${TARGET_BASE}/${TGT_TYPE}/${i}/luns" ]; then
 					 				
@@ -351,7 +351,7 @@ local wait="1"
 	done
 
 	# Timeout Expired, Force Close
-		for i in ${TGT_LIST}; do
+		for i in ${TGT_LIST} ; do
 				
 			if [ -d "${TARGET_BASE}/${TGT_TYPE}/${i}/luns" ]; then
 					 				
@@ -527,7 +527,7 @@ SCSTLun_stop() {
         l_stop_handler || exit $OCF_ERR_GENERIC
 
 	#Debugging purpose
-	if ${OCF_RESKEY_debug_enable}; then		
+	if ${OCF_RESKEY_debug_enable} ; then		
 		scstadmin -write_config /tmp/scst.conf.stop
 	fi
     fi
