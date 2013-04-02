@@ -383,7 +383,7 @@ l_shutdown_iscsi() {
 					if [ -d "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/luns/${LLUN}" ]; then
 						ocf_log warn "Session ${session} active on ${TGT_TYPE} lun ${LLUN}."
 						sid=$(cat "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/sid")
-						
+						sid=$((0x${sid}))
 						for connection in  $( ls "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}" ) ; do
 							if [ -e "${TARGET_BASE}/${TGT_TYPE}/${ltarget}/sessions/${session}/${connection}/cid" ]; then
 								# Have the cid, issue command!
