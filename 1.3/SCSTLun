@@ -362,7 +362,7 @@ local wait="1"
 			
 		sessions_active="1"
 	done
-
+	l_debug "Graceful shutdown exited after ${wait} passes."
 	# Timeout Expired, Force Close
 			
 	
@@ -533,7 +533,8 @@ SCSTLun_stop() {
 			ocf_log info "Disabling srpt target ${i}"
 			echo 0 > "${SRPT_TARGET}/${i}/enabled"
 
-			l_graceful_close_sessions "ib_srpt" "${i}" "${OCF_RESKEY_srpt_lun}"			
+			l_graceful_close_sessions "ib_srpt" "${i}" "${OCF_RESKEY_srpt_lun}"
+			
 			if [ -d "${SRPT_TARGET}/${i}/luns" ]; then
 				# Try to remove LUN - SRPT
 				ocf_log info "Removing LUN ${OCF_RESKEY_iscsi_lun}, SRPT device ${OCF_RESKEY_device_name}, ${i}"			
