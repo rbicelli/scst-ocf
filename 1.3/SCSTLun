@@ -325,6 +325,19 @@ local LLUN="${3}"
 local sessions_active="1"
 local wait="1"
 	
+	for i in ${TGT_LIST} ; do
+				
+			if [ -d "${TARGET_BASE}/${TGT_TYPE}/${i}/luns" ]; then
+					 				
+				for session in $( ls "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions" ) ; do                
+					if [ -d "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions/${session}/luns/${LLUN}" ]; then
+						ocf_log warn "Force closing ${TGT_TYPE} session to initiator ${session} - LUN ${LLUN}"
+						echo 1 > "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions/${session}/force_close"
+					fi					
+				done				
+			fi
+	done
+
 	while [ "${wait}" -lt "${OCF_RESKEY_wait_timeout}" ]; do
 	
 		for i in ${TGT_LIST} ; do
@@ -351,18 +364,7 @@ local wait="1"
 	done
 
 	# Timeout Expired, Force Close
-		for i in ${TGT_LIST} ; do
-				
-			if [ -d "${TARGET_BASE}/${TGT_TYPE}/${i}/luns" ]; then
-					 				
-				for session in $( ls "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions" ) ; do                
-					if [ -d "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions/${session}/luns/${LLUN}" ]; then
-						ocf_log warn "Force closing ${TGT_TYPE} session to initiator ${session} - LUN ${LLUN}"
-						echo 1 > "${TARGET_BASE}/${TGT_TYPE}/${i}/sessions/${session}/force_close"
-					fi					
-				done				
-			fi
-		done	
+			
 	
 	return 1
 }
@@ -508,7 +510,7 @@ SCSTLun_stop() {
 		echo 0 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"		
 		
 		# Try to remove LUN - iSCSI
-		l_shutdown_iscsi "${OCF_RESKEY_target_iqn}" "${OCF_RESKEY_iscsi_lun}"
+		# l_shutdown_iscsi "${OCF_RESKEY_target_iqn}" "${OCF_RESKEY_iscsi_lun}"
 		
 		l_graceful_close_sessions "iscsi" "${OCF_RESKEY_target_iqn}" "${OCF_RESKEY_iscsi_lun}"
 
@@ -528,6 +530,10 @@ SCSTLun_stop() {
 		l_find_srpt_target_name
 		
 		for i in ${SRPT_TARGET_NAME}; do
+			ocf_log info "Disabling srpt target ${i}"
+			echo 0 > "${SRPT_TARGET}/${i}/enabled"
+
+			l_graceful_close_sessions "ib_srpt" "${i}" "${OCF_RESKEY_srpt_lun}"			
 			if [ -d "${SRPT_TARGET}/${i}/luns" ]; then
 				# Try to remove LUN - SRPT
 				ocf_log info "Removing LUN ${OCF_RESKEY_iscsi_lun}, SRPT device ${OCF_RESKEY_device_name}, ${i}"			
@@ -538,6 +544,9 @@ SCSTLun_stop() {
 					return $OCF_ERR_GENERIC
 				fi
 			fi
+			
+			ocf_log info "Enabling srpt target ${i}"
+			echo 1 > "${SRPT_TARGET}/${i}/enabled"
 		done
 	fi
 	
@@ -547,9 +556,9 @@ SCSTLun_stop() {
 	#	# echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"	
 	#fi
 	
-	if ${OCF_RESKEY_srpt_enable} ; then #Infiniband
-		l_graceful_close_sessions "ib_srpt" "${SRPT_TARGET_NAME}" "${OCF_RESKEY_srpt_lun}"	
-	fi
+	#if ${OCF_RESKEY_srpt_enable} ; then #Infiniband
+	#	l_graceful_close_sessions "ib_srpt" "${SRPT_TARGET_NAME}" "${OCF_RESKEY_srpt_lun}"	
+	#fi
 
         # Close Device
 	# TODO: More accurate control on close
